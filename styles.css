@@ -326,6 +326,80 @@ body {
   letter-spacing: 0.2px;
 }
 
+/* Quick links */
+
+.quicklinks {
+  padding: 26px 30px;
+  margin-bottom: 24px;
+}
+
+.quicklinks .panel-head {
+  margin-bottom: 18px;
+}
+
+.quicklinks-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  position: relative;
+  z-index: 1;
+}
+
+.quicklink {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border);
+  text-decoration: none;
+  color: var(--ink);
+  transition: background-color 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+}
+
+.quicklink:hover {
+  background: var(--accent-soft);
+  border-color: rgba(232, 73, 29, 0.25);
+  transform: translateY(-1px);
+}
+
+.quicklink-icon {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.quicklink-icon img {
+  display: block;
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+
+.quicklink-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+@media (max-width: 860px) {
+  .quicklinks-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 520px) {
+  .quicklinks {
+    padding: 20px 22px;
+  }
+}
+
 /* Bento grid */
 
 .bento {
@@ -920,9 +994,20 @@ body {
 }
 
 .plan-team-list {
-  margin: 0;
+  margin: 10px 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.plan-team-list li {
   font-size: 13px;
-  line-height: 1.6;
+  line-height: 1.5;
+  color: var(--ink-faint);
+}
+
+.plan-team-list li::marker {
   color: var(--ink-faint);
 }
 

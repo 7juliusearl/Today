@@ -16,17 +16,31 @@ function firstName() {
   return (DATA.userFirstName || "there");
 }
 
-function timeGreeting(hour) {
-  if (hour < 5) return "Still up,";
-  if (hour < 12) return "Good morning,";
-  if (hour < 17) return "Good afternoon,";
-  return "Good evening,";
+const GREETINGS = {
+  lateNight: ["Still up,", "Night owl mode,", "We're still up,", "Burning the midnight oil,"],
+  morning: ["Let's lock in,", "New day, let's cook,", "Rise and grind,", "Big day energy,"],
+  afternoon: ["Keep the momentum,", "Stay locked in,", "Still cooking,", "Let's keep it pushin',"],
+  evening: ["Finish strong,", "Close it out strong,", "Wrap it up big,"],
+};
+
+function dayOfYear(date) {
+  const start = new Date(date.getFullYear(), 0, 0);
+  return Math.floor((date - start) / 86400000);
+}
+
+function timeGreeting(hour, seed) {
+  let bucket;
+  if (hour < 5) bucket = GREETINGS.lateNight;
+  else if (hour < 12) bucket = GREETINGS.morning;
+  else if (hour < 17) bucket = GREETINGS.afternoon;
+  else bucket = GREETINGS.evening;
+  return bucket[seed % bucket.length];
 }
 
 function renderGreetingAndClock() {
   const now = new Date();
-  document.getElementById("greeting").innerHTML =
-    `${timeGreeting(now.getHours())}<br>${firstName()}.`;
+  document.getElementById("greeting").textContent =
+    `${timeGreeting(now.getHours(), dayOfYear(now))} ${firstName()}.`;
 
   const dateFmt = new Intl.DateTimeFormat("en-US", {
     weekday: "long", month: "long", day: "numeric",
@@ -325,7 +339,9 @@ function renderOnboardingPlan() {
   const teamBlock = plan.team && plan.team.length ? `
     <div class="plan-phase-block">
       <p class="wsched-day-name">Your Team</p>
-      <p class="plan-team-list">${plan.team.map(escapeHtml).join(" · ")}</p>
+      <ul class="plan-team-list">
+        ${plan.team.map((person) => `<li>${escapeHtml(person)}</li>`).join("")}
+      </ul>
     </div>` : "";
 
   const phaseBlocks = plan.phases.map((p, i) => {
