@@ -424,6 +424,24 @@ function slackItemId(it) {
   return it.permalink || `${it.channel}::${it.preview}`;
 }
 
+function toSlackAppLink(permalink) {
+  // Permalinks look like https://TEAM.slack.com/archives/CHANNEL_ID/pTIMESTAMP.
+  // Converting to the slack:// scheme opens the desktop app directly at that
+  // exact message instead of the web client in a browser tab. Omitting the
+  // team param is intentional — channel IDs are globally unique, so Slack's
+  // app resolves the right workspace from id alone.
+  try {
+    const match = permalink.match(/\/archives\/([A-Z0-9]+)\/p(\d+)/);
+    if (!match) return permalink;
+    const channelId = match[1];
+    const tsDigits = match[2];
+    const ts = `${tsDigits.slice(0, -6)}.${tsDigits.slice(-6)}`;
+    return `slack://channel?id=${channelId}&message=${ts}`;
+  } catch {
+    return permalink;
+  }
+}
+
 function renderSlack() {
   const list = document.getElementById("slack-list");
   const slack = DATA.slack || { connected: false, items: [] };
@@ -444,7 +462,7 @@ function renderSlack() {
   list.innerHTML = items.map((it) => {
     const tag = it.permalink ? "a" : "div";
     const linkAttrs = it.permalink
-      ? `href="${escapeHtml(it.permalink)}" target="_blank" rel="noopener"`
+      ? `href="${escapeHtml(toSlackAppLink(it.permalink))}"`
       : "";
     return `
     <${tag} class="slack-item" data-slack-id="${escapeHtml(slackItemId(it))}" ${linkAttrs}>
