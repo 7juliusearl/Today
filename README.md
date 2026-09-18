@@ -7,8 +7,10 @@ Dark glass, rounded bento cards, a warm orange accent — designed to feel like 
 ## Features
 
 - **Today's Schedule** — merges your personal Google Calendar with a shared team calendar, click any event to expand attendees, RSVP status, description, and meeting/calendar links
-- **Coming Up** — the next day with something on it, when today's clear
+- **Coming Up** — the next few days with something on them, when today's clear
+- **Needs Your RSVP** — every calendar invite you haven't responded to yet, regardless of how far out it is
 - **Slack** — messages posted since the dashboard's last refresh (there's no true "unread" API, so this is the closest honest equivalent)
+- **Sticky notes** — a coworker can leave you an encouraging note by DMing you on Slack starting with 📌; it shows up as an actual rotated sticky note stuck to a corner of the page (a different spot each time, dismissible, sticks around ~2 weeks or until a newer one replaces it)
 - **Verse of the Day** — pulled from a public verse API each morning
 - **Weather** — live, via your browser's location, no API key needed
 - **Work Schedule / Onboarding** *(optional)* — your own hand-maintained weekly rhythm and 30/60/90 plan, if you fill them in
@@ -25,6 +27,8 @@ This dashboard is driven by [Claude Code](https://claude.com/claude-code) — a 
 3. Open this folder in Claude Code and say **"set up my dashboard"** (or run `/setup-dashboard`).
 
 That's it — Claude walks you through connecting your calendar (and Slack, if you want it), creates your personal refresh schedule, pulls in real data immediately, and gets the local server running, using the [setup-dashboard skill](.claude/skills/setup-dashboard/SKILL.md) bundled in this repo. On macOS it also sets up the always-on background server and pins a real Dock icon automatically — nothing to click through in a browser menu.
+
+**One important thing it tells you up front**: the data refresh only happens while the Claude Code desktop app is open — the dashboard itself works fine without it, but nothing new gets fetched until Claude Code is running again. The setup flow will offer to add Claude Code to your macOS Login Items (asking first) so this stops being something you have to think about.
 
 <details>
 <summary>Prefer to do it by hand instead?</summary>
@@ -62,5 +66,6 @@ Note: the scheduled task itself only fires while the Claude Code desktop app is 
 - `icons/` — app icon source (`source.svg`), generated PNGs, and `Today.icns` for the Dock app; `manifest.json` — PWA metadata
 - `start.sh` — local server launcher
 - `scripts/install-dock-app.sh` — builds and pins the Dock icon (macOS, safe to re-run)
+- `scripts/enable-claude-login-item.sh` — adds Claude Code to macOS Login Items (macOS, safe to re-run, asks first in the setup flow)
 - `com.today-dashboard.plist.example` — LaunchAgent template for always-on background serving
 - `.claude/skills/setup-dashboard/` — the one-command setup flow used above

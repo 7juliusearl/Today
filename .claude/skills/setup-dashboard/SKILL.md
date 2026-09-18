@@ -5,6 +5,8 @@ description: One-time interactive setup for the "Today" dashboard in this repo �
 
 You are setting up a fresh copy of the "Today" dashboard for a new person (not the original author). This is a static local site (`index.html` / `styles.css` / `app.js`) whose data comes from a scheduled Claude Code task that writes `data/dashboard.js`. Your job is to make this person's copy fully working with THEIR calendar, Slack, and machine — end to end, asking only what's necessary and doing the rest yourself.
 
+**Tell the user this up front, before doing anything else** — it's the single most important thing to set expectations correctly: the data refresh (calendar, Slack, pending invites, sticky notes, verse) only happens while the **Claude Code desktop app is open**. The dashboard site itself, the local server, and weather all work fine with Claude Code closed — but nothing new gets fetched until it's open again (it catches up automatically on next launch, nothing is lost, it's just delayed). Because of this, Phase 1.5 below offers to make Claude Code launch automatically at login, which removes the problem for most people.
+
 Work through these phases in order. Don't skip ahead — each one depends on the last.
 
 ## Phase 0 — Sanity check
@@ -21,11 +23,20 @@ Once connected, call `list_calendars` and show the user the list. Ask them (a si
 
 Record: `PRIMARY_CALENDAR_ID` and `EXTRA_CALENDAR_IDS` (a list, possibly empty).
 
+## Phase 1.5 — Offer to launch Claude Code at login (macOS only)
+
+Explain briefly why this matters (see the note at the top) and ask if they want Claude Code to launch automatically at login so refreshes happen reliably without them thinking about it. This is a real system-settings change (macOS Login Items) — **ask first, don't just do it**.
+
+- If yes: run `./scripts/enable-claude-login-item.sh`. It's safe and idempotent (checks whether Claude is already a login item before adding it), and tell them afterward it's reversible any time via System Settings → General → Login Items.
+- If no or unsure: that's fine — just make sure they understand the tradeoff (stale data between launches) and move on. Don't push.
+
+If they're not on macOS, skip this and just make sure they understand the tradeoff.
+
 ## Phase 2 — Connect Slack (optional)
 
 Check installed connectors for "slack". If not connected, ask the user whether they want Slack activity on their dashboard at all — some people won't. If yes, suggest the connector and wait for them to connect it. If they decline or skip, that's fine — the dashboard already degrades gracefully with a "Slack isn't connected yet" message, and you'll tell the scheduled task to just report `connected: false`.
 
-Record: `SLACK_ENABLED` (true/false).
+Record: `SLACK_ENABLED` (true/false). If enabled, mention to the user: a coworker can leave them an encouraging sticky note by DMing them on Slack starting with 📌 — it'll show up on the dashboard automatically after the next refresh.
 
 ## Phase 3 — Get their name
 
@@ -40,6 +51,7 @@ Use `mcp__scheduled-tasks__create_scheduled_task` (taskId `refresh-dashboard-dat
 - **The next few days**: same rich mapping, for tomorrow through 14 days out, grouped by calendar date, keeping the first 5 dates that have ≥1 event. Output as `calendar.upcoming`: an array of `{ date, events }`.
 - **Pending invitations**: across everything fetched above, filter to `myResponseStatus === "needsAction"`, sort by start, cap at 10. Output as `calendar.pendingInvites`.
 - **Slack** (only if `SLACK_ENABLED`): read the CURRENT `data/dashboard.js`'s `generatedAt` as a cutoff (fallback: 24h ago if missing/unreadable). There is NO unread/read-state API in the Slack tools available — don't look for one. Instead call the combined public+private search tool once with the cutoff as the top-level Unix-timestamp `after` param, `filters: "after:<cutoff date, one day earlier>"`, `content_types: "messages"`, `sort: "timestamp"`, `sort_dir: "desc"`, `limit: 20`, `include_bots: false`. Discard results at/before the exact cutoff, group by channel/DM, build `{ channel, preview (~140 chars), unreadCount }` per group, cap at 8, sorted most-recent-first. Set `slack.connected: true` if the call succeeded (even with 0 results), `false` only if the call itself failed. If `SLACK_ENABLED` is false, always output `{ connected: false, items: [] }` without attempting any Slack call.
+- **Sticky note** (only if `SLACK_ENABLED`) — a coworker can leave an encouraging note that shows up as a physical-looking sticky note on the page. Run ONE more Slack search: `keywords: ["📌"]`, `filters: "is:dm"`, `content_types: "messages"`, `sort: "timestamp"`, `sort_dir: "desc"`, `limit: 10`, `include_bots: false`. From the results, keep only messages that (a) start with 📌 once trimmed (discard ones where it just appears mid-message — the search can false-positive on that), (b) weren't sent by the user themself, (c) are within the last 14 days. Take the single most recent survivor, strip the leading marker, and build `{ text, from (sender's display name), ts (ISO timestamp) }`. Output as `stickyNote`, or `null` if nothing survives or the search fails — never invent a placeholder. If `SLACK_ENABLED` is false, always output `stickyNote: null`.
 - **Verse of the day**: WebFetch `https://beta.ourmanna.com/api/v1/get/?format=json&order=daily`, extract `verse.details.{text,reference,version}`. On failure, pick randomly from a small built-in fallback list (a few well-known verses) so the card is never empty.
 - **Output**: overwrite `data/dashboard.js` (the exact path under this repo, using the absolute path from Phase 0) with:
   ```js
@@ -50,6 +62,7 @@ Use `mcp__scheduled-tasks__create_scheduled_task` (taskId `refresh-dashboard-dat
     userFirstName: "FIRST_NAME",
     calendar: { events: [...], upcoming: [...], pendingInvites: [...] },
     slack: { connected: <bool>, items: [...] },
+    stickyNote: { text, from, ts } or null,
     verse: { text, reference, version }
   };
   ```
@@ -87,4 +100,4 @@ If they're not on macOS, skip this and just mention the manual Add to Dock steps
 
 ## Wrap-up
 
-Give a short summary of what's now live (which calendars, whether Slack is on, whether the LaunchAgent is running) and remind them the scheduled task refreshes weekdays at 6:30 AM — only while Claude Code's desktop app is open; otherwise it catches up on next launch.
+Give a short summary of what's now live (which calendars, whether Slack is on, whether the LaunchAgent is running, whether Claude Code is now a login item) and remind them the scheduled task refreshes weekdays at 6:30 AM — only while Claude Code's desktop app is open; otherwise it catches up on next launch. If they skipped the login-item step, mention once more that they can run `./scripts/enable-claude-login-item.sh` any time later if stale data becomes annoying.

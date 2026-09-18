@@ -1,4 +1,4 @@
-const DATA = window.DASHBOARD_DATA || { calendar: { events: [], upcoming: [], pendingInvites: [] }, slack: { connected: false, items: [] } };
+const DATA = window.DASHBOARD_DATA || { calendar: { events: [], upcoming: [], pendingInvites: [] }, slack: { connected: false, items: [] }, stickyNote: null };
 
 const WEATHER_CODES = {
   0: "Clear sky", 1: "Mostly clear", 2: "Partly cloudy", 3: "Overcast",
@@ -538,6 +538,37 @@ function initRefreshButton() {
   });
 }
 
+function renderStickyNote() {
+  const note = DATA.stickyNote;
+  const el = document.getElementById("sticky-note");
+  if (!note || !note.text) {
+    el.hidden = true;
+    return;
+  }
+
+  const noteId = `${note.ts || ""}-${note.text.length}`;
+  let dismissedId = null;
+  try { dismissedId = localStorage.getItem("dashboard-dismissed-note"); } catch {}
+  if (dismissedId === noteId) {
+    el.hidden = true;
+    return;
+  }
+
+  let hash = 0;
+  for (let i = 0; i < noteId.length; i++) hash = (hash * 31 + noteId.charCodeAt(i)) >>> 0;
+  const positionCount = 5;
+  el.className = `sticky-note sticky-pos-${hash % positionCount}`;
+
+  document.getElementById("sticky-note-text").textContent = note.text;
+  document.getElementById("sticky-note-from").textContent = note.from ? `— ${note.from}` : "";
+  el.hidden = false;
+
+  document.getElementById("sticky-note-dismiss").onclick = () => {
+    el.hidden = true;
+    try { localStorage.setItem("dashboard-dismissed-note", noteId); } catch {}
+  };
+}
+
 initThemeToggle();
 initRefreshButton();
 renderGreetingAndClock();
@@ -549,5 +580,6 @@ renderHeroRhythm();
 renderOnboardingPlan();
 renderSlack();
 renderVerse();
+renderStickyNote();
 renderFooter();
 initWeather();

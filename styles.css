@@ -1224,3 +1224,81 @@ body {
     padding: 24px 22px;
   }
 }
+
+/* Sticky note */
+
+.sticky-note {
+  position: fixed;
+  z-index: 40;
+  width: 190px;
+  padding: 22px 18px 18px;
+  background: linear-gradient(165deg, #fff3a8, #ffe985);
+  color: #4a3f1a;
+  font-family: "Caveat", cursive;
+  font-size: 21px;
+  line-height: 1.35;
+  box-shadow: 3px 6px 16px rgba(0, 0, 0, 0.28), 0 1px 0 rgba(255, 255, 255, 0.4) inset;
+  animation: sticky-in 0.5s ease-out;
+}
+
+.sticky-note::before {
+  content: "";
+  position: absolute;
+  top: -9px;
+  left: 50%;
+  transform: translateX(-50%) rotate(-4deg);
+  width: 34px;
+  height: 16px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.sticky-note-text {
+  margin: 0 0 10px;
+}
+
+.sticky-note-from {
+  margin: 0;
+  font-size: 15px;
+  opacity: 0.65;
+  text-align: right;
+}
+
+.sticky-note-dismiss {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  border: none;
+  background: none;
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1;
+  color: rgba(74, 63, 26, 0.4);
+  cursor: pointer;
+  padding: 4px;
+}
+
+.sticky-note-dismiss:hover {
+  color: rgba(74, 63, 26, 0.85);
+}
+
+@keyframes sticky-in {
+  from { opacity: 0; transform: translateY(-10px) rotate(0deg) scale(0.92); }
+}
+
+.sticky-pos-0 { top: 78px; left: 26px; transform: rotate(-5deg); }
+.sticky-pos-1 { top: 90px; right: 40px; transform: rotate(4deg); }
+.sticky-pos-2 { bottom: 32px; right: 36px; transform: rotate(-3deg); }
+.sticky-pos-3 { bottom: 40px; left: 40px; transform: rotate(3deg); }
+.sticky-pos-4 { top: 46vh; right: 24px; transform: rotate(5deg); }
+
+@media (max-width: 700px) {
+  .sticky-pos-0, .sticky-pos-1, .sticky-pos-2, .sticky-pos-3, .sticky-pos-4 {
+    top: auto;
+    right: 16px;
+    left: 16px;
+    bottom: 16px;
+    width: auto;
+    transform: rotate(-2deg);
+  }
+}

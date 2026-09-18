@@ -11,14 +11,20 @@
 <meta name="theme-color" content="#f2ede4" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="styles.css?v=14" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&family=Caveat:wght@500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css?v=15" />
 </head>
 <body>
 
 <div class="ambient-glow glow-1"></div>
 <div class="ambient-glow glow-2"></div>
 <div class="grain"></div>
+
+<div class="sticky-note" id="sticky-note" hidden>
+  <button class="sticky-note-dismiss" id="sticky-note-dismiss" type="button" aria-label="Dismiss note">&times;</button>
+  <p class="sticky-note-text" id="sticky-note-text"></p>
+  <p class="sticky-note-from" id="sticky-note-from"></p>
+</div>
 
 <div class="top-controls">
   <button class="icon-btn refresh-btn" id="refresh-btn" type="button" aria-label="Refresh dashboard">
@@ -198,6 +204,6 @@
 <script src="data/dashboard.js?v=5"></script>
 <script src="data/schedule.js?v=1"></script>
 <script src="data/plan.js?v=1"></script>
-<script src="app.js?v=16"></script>
+<script src="app.js?v=17"></script>
 </body>
 </html>
