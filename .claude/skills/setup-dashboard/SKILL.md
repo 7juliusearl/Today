@@ -67,7 +67,7 @@ From this directory, run `./start.sh` to open `http://localhost:4173` in their d
 
 ## Phase 7 — Keep it running (macOS only)
 
-Ask if they want the server to survive reboots/logins automatically (recommended). If yes:
+Just do this automatically — don't ask first, it's fully reversible and low-risk:
 1. Copy `com.today-dashboard.plist.example` to `~/Library/LaunchAgents/com.today-dashboard.plist`.
 2. Replace the placeholder path inside it with this repo's real absolute path (from Phase 0).
 3. `launchctl load -w ~/Library/LaunchAgents/com.today-dashboard.plist`.
@@ -75,9 +75,15 @@ Ask if they want the server to survive reboots/logins automatically (recommended
 
 If they're not on macOS, skip this and just tell them to run `./start.sh` whenever they want to check the dashboard.
 
-## Phase 8 — Dock app (tell, don't do)
+## Phase 8 — Dock icon (macOS only)
 
-You can't click browser menus for them. Tell them: open `http://localhost:4173` in Safari or Chrome, then either **File → Add to Dock** (Safari) or the install icon in the address bar / **⋮ → Cast, save, and share → Install page as app** (Chrome). The custom "T." icon and the name "Today" are already wired up via the favicon/manifest, so it'll pick them up automatically.
+Also automatic, no browser menus needed: run `./scripts/install-dock-app.sh`. It builds a real `.app` bundle at `~/Applications/Today.app` with the custom "T." icon and pins it to the Dock.
+
+This script is deliberately conservative — read the comments at the top of it before running: it only ever *adds* (never deletes or rewrites anything), and if a `Today.app` already exists there (e.g. they'd previously used Safari's "Add to Dock" themselves) it leaves it completely alone rather than touching it. Because of that, it's safe to just run.
+
+**Do not** try to "clean up" or remove Dock entries yourself by editing `~/Library/Preferences/com.apple.dock.plist` directly (via `PlistBuddy -c "Delete ..."` or similar) — editing that file while the Dock process is running races with Dock's own writes and can silently delete the wrong array entry (this happened once while building this feature and removed two unrelated Dock icons that had to be manually restored). If something ever needs to be removed from the Dock, ask the user to drag it off themselves, or use only additive, idempotent operations (`defaults write ... -array-add`, gated by a `defaults read | grep` check) — never index-based deletes against a live plist.
+
+If they're not on macOS, skip this and just mention the manual Add to Dock steps (Safari: File → Add to Dock; Chrome: install icon in the address bar) as an alternative.
 
 ## Wrap-up
 

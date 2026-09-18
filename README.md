@@ -24,7 +24,7 @@ This dashboard is driven by [Claude Code](https://claude.com/claude-code) — a 
 2. Clone this repo: `git clone https://github.com/7juliusearl/Today.git && cd Today`
 3. Open this folder in Claude Code and say **"set up my dashboard"** (or run `/setup-dashboard`).
 
-That's it — Claude walks you through connecting your calendar (and Slack, if you want it), creates your personal refresh schedule, pulls in real data immediately, and gets the local server running, using the [setup-dashboard skill](.claude/skills/setup-dashboard/SKILL.md) bundled in this repo. It'll also offer to set up the always-on background server and tell you how to add it to your Dock.
+That's it — Claude walks you through connecting your calendar (and Slack, if you want it), creates your personal refresh schedule, pulls in real data immediately, and gets the local server running, using the [setup-dashboard skill](.claude/skills/setup-dashboard/SKILL.md) bundled in this repo. On macOS it also sets up the always-on background server and pins a real Dock icon automatically — nothing to click through in a browser menu.
 
 <details>
 <summary>Prefer to do it by hand instead?</summary>
@@ -34,7 +34,7 @@ That's it — Claude walks you through connecting your calendar (and Slack, if y
 3. **Create a scheduled task** (`refresh-dashboard-data`, weekdays 6:30 AM) that regenerates `data/dashboard.js` — the [setup-dashboard skill](.claude/skills/setup-dashboard/SKILL.md) contains the exact task design (including some non-obvious lessons learned, like Slack having no real unread API). Point Claude at that file and have it build the same task manually.
 4. **Run it once**, then `./start.sh` to open `http://localhost:4173` in your regular browser (not Claude's built-in one — no logins there).
 5. **(Optional)** Copy `com.today-dashboard.plist.example` to `~/Library/LaunchAgents/com.today-dashboard.plist`, fix the path inside it, then `launchctl load -w ~/Library/LaunchAgents/com.today-dashboard.plist` to keep it running permanently.
-6. **(Optional)** Add to Dock: Safari → File → Add to Dock, or Chrome's install-as-app.
+6. **(Optional)** Dock icon: run `./scripts/install-dock-app.sh` (macOS, builds a real `.app` and pins it — safe to re-run), or do it manually via Safari → File → Add to Dock / Chrome's install-as-app.
 
 </details>
 
@@ -59,6 +59,8 @@ Note: the scheduled task itself only fires while the Claude Code desktop app is 
 - `index.html` / `styles.css` / `app.js` — the page
 - `data/*.example.js` — the schema each optional data file expects; copy to the non-`.example` name and fill in
 - `data/dashboard.js`, `data/schedule.js`, `data/plan.js` — your real, gitignored personal data
-- `icons/` — app icon source and generated sizes, `manifest.json` — PWA metadata for Dock/install
+- `icons/` — app icon source (`source.svg`), generated PNGs, and `Today.icns` for the Dock app; `manifest.json` — PWA metadata
 - `start.sh` — local server launcher
+- `scripts/install-dock-app.sh` — builds and pins the Dock icon (macOS, safe to re-run)
 - `com.today-dashboard.plist.example` — LaunchAgent template for always-on background serving
+- `.claude/skills/setup-dashboard/` — the one-command setup flow used above
