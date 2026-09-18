@@ -1,4 +1,4 @@
-const DATA = window.DASHBOARD_DATA || { calendar: { events: [] }, slack: { connected: false, items: [] } };
+const DATA = window.DASHBOARD_DATA || { calendar: { events: [], upcoming: [], pendingInvites: [] }, slack: { connected: false, items: [] } };
 
 const WEATHER_CODES = {
   0: "Clear sky", 1: "Mostly clear", 2: "Partly cloudy", 3: "Overcast",
@@ -190,23 +190,65 @@ function renderSchedule() {
   }).join("");
 }
 
-function renderComingUp() {
-  const section = document.getElementById("coming-up");
-  const next = DATA.calendar && DATA.calendar.nextUpcoming;
+function formatDayHeading(dateStr) {
+  const dateObj = new Date(`${dateStr}T12:00:00`);
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "long", month: "long", day: "numeric",
+  }).format(dateObj).toUpperCase();
+}
 
-  if (!next || !next.events || next.events.length === 0) {
+function renderUpcoming() {
+  const section = document.getElementById("coming-up");
+  const days = (DATA.calendar && DATA.calendar.upcoming) || [];
+
+  if (days.length === 0) {
     section.hidden = true;
     return;
   }
 
-  const dateObj = new Date(`${next.date}T12:00:00`);
-  const dateFmt = new Intl.DateTimeFormat("en-US", {
-    weekday: "long", month: "long", day: "numeric",
-  }).format(dateObj);
+  document.getElementById("coming-up-events").innerHTML = days.map((day) => `
+    <div class="upcoming-day-group">
+      <p class="upcoming-day-date">${escapeHtml(formatDayHeading(day.date))}</p>
+      ${day.events.map((ev) => renderEventItem(ev, false)).join("")}
+    </div>
+  `).join("");
+  section.hidden = false;
+}
 
-  document.getElementById("coming-up-date").textContent = dateFmt;
-  document.getElementById("coming-up-events").innerHTML =
-    next.events.map((ev) => renderEventItem(ev, false)).join("");
+function formatEventDateTime(ev) {
+  const dateObj = new Date(ev.start);
+  const datePart = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(dateObj);
+  return ev.allDay ? datePart : `${datePart} · ${formatEventTime(ev.start, false)}`;
+}
+
+function renderPendingInvites() {
+  const section = document.getElementById("pending-invites");
+  const invites = (DATA.calendar && DATA.calendar.pendingInvites) || [];
+
+  if (invites.length === 0) {
+    section.hidden = true;
+    return;
+  }
+
+  document.getElementById("pending-invites-list").innerHTML = invites.map((ev) => {
+    const expandable = hasExpandableDetails(ev);
+    const summaryInner = `
+      <div class="invite-date">${formatEventDateTime(ev)}</div>
+      <div class="event-main">
+        <p class="event-title">${escapeHtml(ev.title)}<span class="event-tag">Awaiting response</span>${eventTags(ev)}</p>
+        ${ev.location ? `<p class="event-location">${escapeHtml(ev.location)}</p>` : ""}
+      </div>
+      ${expandable ? '<span class="event-chevron" aria-hidden="true"></span>' : ""}
+    `;
+    if (!expandable) {
+      return `<div class="event invite-row"><div class="event-summary event-summary-static">${summaryInner}</div></div>`;
+    }
+    return `
+      <details class="event invite-row">
+        <summary class="event-summary">${summaryInner}</summary>
+        <div class="event-details">${renderEventDetailsBody(ev)}</div>
+      </details>`;
+  }).join("");
   section.hidden = false;
 }
 
@@ -500,7 +542,8 @@ initThemeToggle();
 initRefreshButton();
 renderGreetingAndClock();
 renderSchedule();
-renderComingUp();
+renderUpcoming();
+renderPendingInvites();
 renderWorkSchedule();
 renderHeroRhythm();
 renderOnboardingPlan();

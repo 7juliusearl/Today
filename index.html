@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
-<link rel="stylesheet" href="styles.css?v=12" />
+<link rel="stylesheet" href="styles.css?v=14" />
 </head>
 <body>
 
@@ -77,16 +77,6 @@
       </div>
     </div>
 
-    <div class="glass-card bento-slack">
-      <div class="panel-head">
-        <p class="eyebrow">Slack</p>
-        <h2 class="panel-title">Unread</h2>
-      </div>
-      <div class="panel-body" id="slack-list">
-        <p class="empty-state">Loading messages&hellip;</p>
-      </div>
-    </div>
-
     <div class="glass-card bento-verse">
       <div class="panel-head">
         <p class="eyebrow">Verse of the Day</p>
@@ -99,12 +89,30 @@
       </div>
     </div>
 
+    <div class="glass-card bento-slack">
+      <div class="panel-head">
+        <p class="eyebrow">Slack</p>
+        <h2 class="panel-title">Unread</h2>
+      </div>
+      <div class="panel-body" id="slack-list">
+        <p class="empty-state">Loading messages&hellip;</p>
+      </div>
+    </div>
+
     <div class="glass-card bento-comingup" id="coming-up" hidden>
       <div class="panel-head">
         <p class="eyebrow">Coming Up</p>
-        <h2 class="panel-title" id="coming-up-date">&nbsp;</h2>
+        <h2 class="panel-title">The next few days</h2>
       </div>
       <div class="panel-body" id="coming-up-events"></div>
+    </div>
+
+    <div class="glass-card bento-invites" id="pending-invites" hidden>
+      <div class="panel-head">
+        <p class="eyebrow">Needs Your RSVP</p>
+        <h2 class="panel-title">Pending invitations</h2>
+      </div>
+      <div class="panel-body" id="pending-invites-list"></div>
     </div>
 
     <div class="glass-card bento-workschedule">
@@ -190,6 +198,6 @@
 <script src="data/dashboard.js?v=5"></script>
 <script src="data/schedule.js?v=1"></script>
 <script src="data/plan.js?v=1"></script>
-<script src="app.js?v=14"></script>
+<script src="app.js?v=16"></script>
 </body>
 </html>

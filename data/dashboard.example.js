@@ -28,29 +28,53 @@ window.DASHBOARD_DATA = {
         htmlLink: "https://calendar.google.com/calendar/event?eid=example"
       }
     ],
-    nextUpcoming: {
-      date: "2026-01-08",
-      events: [
-        {
-          id: "example-2",
-          title: "Quarterly planning",
-          start: "2026-01-08T00:00:00-05:00",
-          end: "2026-01-09T00:00:00-05:00",
-          allDay: true,
-          location: null,
-          calendar: "team",
-          description: null,
-          meetingLink: null,
-          organizer: { name: "Team Calendar", email: "team@example.com" },
-          attendees: [],
-          attendeeCount: 0,
-          myResponseStatus: null,
-          status: "confirmed",
-          recurring: false,
-          htmlLink: "https://calendar.google.com/calendar/event?eid=example2"
-        }
-      ]
-    }
+    upcoming: [
+      {
+        date: "2026-01-08",
+        events: [
+          {
+            id: "example-2",
+            title: "Quarterly planning",
+            start: "2026-01-08T00:00:00-05:00",
+            end: "2026-01-09T00:00:00-05:00",
+            allDay: true,
+            location: null,
+            calendar: "team",
+            description: null,
+            meetingLink: null,
+            organizer: { name: "Team Calendar", email: "team@example.com" },
+            attendees: [],
+            attendeeCount: 0,
+            myResponseStatus: null,
+            status: "confirmed",
+            recurring: false,
+            htmlLink: "https://calendar.google.com/calendar/event?eid=example2"
+          }
+        ]
+      }
+    ],
+    pendingInvites: [
+      {
+        id: "example-3",
+        title: "Design review",
+        start: "2026-01-09T14:00:00-05:00",
+        end: "2026-01-09T15:00:00-05:00",
+        allDay: false,
+        location: null,
+        calendar: "personal",
+        description: null,
+        meetingLink: "https://meet.google.com/example2",
+        organizer: { name: "Jordan Lee", email: "jordan@example.com" },
+        attendees: [
+          { name: "Jordan Lee", email: "jordan@example.com", responseStatus: "accepted" }
+        ],
+        attendeeCount: 1,
+        myResponseStatus: "needsAction",
+        status: "confirmed",
+        recurring: false,
+        htmlLink: "https://calendar.google.com/calendar/event?eid=example3"
+      }
+    ]
   },
   slack: {
     connected: true,

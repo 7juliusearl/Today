@@ -413,6 +413,7 @@ body {
 .bento-slack { grid-column: span 5; }
 .bento-verse { grid-column: span 5; }
 .bento-comingup { grid-column: span 7; }
+.bento-invites { grid-column: span 12; }
 .bento-workschedule { grid-column: span 12; }
 .bento-plan { grid-column: span 12; }
 
@@ -420,6 +421,7 @@ body {
 .glass-card.bento-slack,
 .glass-card.bento-verse,
 .glass-card.bento-comingup,
+.glass-card.bento-invites,
 .glass-card.bento-workschedule,
 .glass-card.bento-plan {
   padding: 30px 30px;
@@ -429,12 +431,39 @@ body {
 }
 
 .bento-workschedule,
-.bento-plan {
+.bento-plan,
+.bento-invites {
   min-height: unset;
 }
 
 .bento-comingup {
   min-height: unset;
+}
+
+.upcoming-day-group + .upcoming-day-group {
+  margin-top: 22px;
+}
+
+.upcoming-day-date {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 8px;
+}
+
+.invite-date {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  padding-top: 3px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
 .panel-head {
@@ -498,6 +527,29 @@ body {
 .event-summary-static {
   cursor: default;
   grid-template-columns: 78px 1fr;
+}
+
+.invite-row .event-summary {
+  grid-template-columns: 128px 1fr 16px;
+}
+
+.invite-row .event-summary-static {
+  grid-template-columns: 128px 1fr;
+}
+
+.invite-row .event-details {
+  padding-left: 142px;
+}
+
+@media (max-width: 520px) {
+  .invite-row .event-summary,
+  .invite-row .event-summary-static {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+  .invite-row .event-details {
+    padding-left: 0;
+  }
 }
 
 .event:first-child .event-summary {

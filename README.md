@@ -18,41 +18,25 @@ Dark glass, rounded bento cards, a warm orange accent — designed to feel like 
 
 This dashboard is driven by [Claude Code](https://claude.com/claude-code) — a scheduled task does the data fetching (it needs access to your Google Calendar and, optionally, Slack), and everything else is a static site with no server-side code of its own.
 
-1. **Clone this repo** somewhere on your machine, e.g. `~/Projects/Today`.
+**The short version:**
 
-2. **Connect your calendar (and optionally Slack)** to Claude Code, if you haven't already — Claude Code → connectors.
+1. Install [Claude Code](https://claude.com/claude-code) if you don't already have it.
+2. Clone this repo: `git clone https://github.com/7juliusearl/Today.git && cd Today`
+3. Open this folder in Claude Code and say **"set up my dashboard"** (or run `/setup-dashboard`).
 
-3. **Copy the example data files** so the dashboard has something to show immediately:
-   ```bash
-   cp data/dashboard.example.js data/dashboard.js
-   cp data/schedule.example.js data/schedule.js   # optional
-   cp data/plan.example.js data/plan.js           # optional
-   ```
-   These three are gitignored — they hold your personal calendar/Slack/schedule data and are never meant to be committed.
+That's it — Claude walks you through connecting your calendar (and Slack, if you want it), creates your personal refresh schedule, pulls in real data immediately, and gets the local server running, using the [setup-dashboard skill](.claude/skills/setup-dashboard/SKILL.md) bundled in this repo. It'll also offer to set up the always-on background server and tell you how to add it to your Dock.
 
-4. **Create a scheduled task in Claude Code** that regenerates `data/dashboard.js` every weekday morning. Ask Claude something like:
+<details>
+<summary>Prefer to do it by hand instead?</summary>
 
-   > Set up a scheduled task that runs weekdays at 6:30 AM, pulls today's events from my Google Calendar(s) and recent Slack activity, fetches a verse of the day, and writes the result to `data/dashboard.js` in this project — matching the shape in `data/dashboard.example.js`.
+1. **Connect your calendar (and optionally Slack)** to Claude Code — connectors settings.
+2. **Copy `data/dashboard.example.js` to `data/dashboard.js`** so the page has something to show before your first refresh runs.
+3. **Create a scheduled task** (`refresh-dashboard-data`, weekdays 6:30 AM) that regenerates `data/dashboard.js` — the [setup-dashboard skill](.claude/skills/setup-dashboard/SKILL.md) contains the exact task design (including some non-obvious lessons learned, like Slack having no real unread API). Point Claude at that file and have it build the same task manually.
+4. **Run it once**, then `./start.sh` to open `http://localhost:4173` in your regular browser (not Claude's built-in one — no logins there).
+5. **(Optional)** Copy `com.today-dashboard.plist.example` to `~/Library/LaunchAgents/com.today-dashboard.plist`, fix the path inside it, then `launchctl load -w ~/Library/LaunchAgents/com.today-dashboard.plist` to keep it running permanently.
+6. **(Optional)** Add to Dock: Safari → File → Add to Dock, or Chrome's install-as-app.
 
-   Claude can read this repo's `app.js` to see exactly what fields each section expects. Run it once manually the first time to confirm it works and to grant any tool permissions.
-
-5. **Run the server and open it:**
-   ```bash
-   ./start.sh
-   ```
-   This opens `http://localhost:4173` in your default browser (not Claude's built-in browser — that one has no logins of its own, so calendar links won't resolve there).
-
-6. **(Optional) Keep it running permanently.** Copy `com.today-dashboard.plist.example` to `~/Library/LaunchAgents/com.today-dashboard.plist`, replace the placeholder path with this repo's absolute path, then:
-   ```bash
-   launchctl load -w ~/Library/LaunchAgents/com.today-dashboard.plist
-   ```
-   Now the server starts automatically at login and restarts itself if it ever crashes.
-
-7. **(Optional) Turn it into a Dock app** for the full command-center feel:
-   - **Safari**: open the page, then File → Add to Dock
-   - **Chrome**: open the page, click the install icon in the address bar (or ⋮ → Cast, save, and share → Install page as app)
-
-   The favicon/manifest are already set up so it picks up the custom "T." icon and the name "Today" automatically.
+</details>
 
 ## Customizing
 
