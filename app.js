@@ -538,6 +538,12 @@ function initRefreshButton() {
   });
 }
 
+function initAutoRefresh() {
+  // Data refreshes every 30 min (8am-5pm weekdays) — reload periodically
+  // so an already-open tab picks that up without anyone clicking refresh.
+  setInterval(() => window.location.reload(), 10 * 60 * 1000);
+}
+
 function renderStickyNote() {
   const note = DATA.stickyNote;
   const el = document.getElementById("sticky-note");
@@ -571,6 +577,7 @@ function renderStickyNote() {
 
 initThemeToggle();
 initRefreshButton();
+initAutoRefresh();
 renderGreetingAndClock();
 renderSchedule();
 renderUpcoming();

@@ -44,7 +44,9 @@ Ask (or infer from context you already have, e.g. their email) their first name 
 
 ## Phase 4 — Create the scheduled task
 
-Use `mcp__scheduled-tasks__create_scheduled_task` (taskId `refresh-dashboard-data`, cron `30 6 * * 1-5` — weekdays 6:30 AM local time) with a prompt you write yourself, following this reference shape. This exact design was arrived at through real trial and error — don't reinvent it, adapt it:
+Ask what refresh cadence they want during the work day — a single early-morning run leaves the dashboard frozen the rest of the day, which defeats the point if they're planning to leave it open. Offer something like: hourly during work hours (light touch), every 30 minutes during work hours (fresher, roughly double the Calendar/Slack calls), or just once shortly before they typically arrive (lightest, but stale all day). Pick a matching cron — e.g. `0,30 8-17 * * 1-5` for every 30 min 8am–5pm weekdays, `0 8-17 * * 1-5` for hourly, or `0 8 * * 1-5` for once at 8am. All times are LOCAL, weekdays only unless they say otherwise.
+
+Use `mcp__scheduled-tasks__create_scheduled_task` (taskId `refresh-dashboard-data`, cron from whatever they chose above) with a prompt you write yourself, following this reference shape. This exact design was arrived at through real trial and error — don't reinvent it, adapt it:
 
 - **Today's events**: `list_events` for today's full range (00:00–23:59 local) on `PRIMARY_CALENDAR_ID` and each of `EXTRA_CALENDAR_IDS`. Map every non-declined event (see the RSVP note below) to a rich object: `id, title, start, end, allDay, location, calendar` ("personal" for the primary calendar, "team" for every extra one), `description` (plain text, HTML stripped, truncated ~600 chars), `meetingLink` (hangoutLink or a video-type conferenceData entryPoint), `organizer` ({name, email}, null if it's just the user), `attendees` (non-resource attendees, capped 15, each {name, email, responseStatus}), `attendeeCount`, `myResponseStatus` (the self attendee's responseStatus, or "organizer", or null), `status`, `recurring` (has a recurringEventId), `htmlLink`. Merge all calendars into one array sorted by start.
 - **RSVP note (important)**: events awaiting the user's response (`responseStatus: "needsAction"` on their own attendee entry) are NOT declined — always include them. Only skip events where the user's own status is "declined".
@@ -68,7 +70,7 @@ Use `mcp__scheduled-tasks__create_scheduled_task` (taskId `refresh-dashboard-dat
   ```
 - Make the task silent (no chat report, just write the file) and defensive (any single step failing should degrade to an empty/safe default for that field, never leave the file unwritten).
 
-After creating it, run it once immediately with `mcp__scheduled-tasks__run_scheduled_task` so they see real data right away instead of placeholder text. Wait for it to succeed before moving on; if it fails, read the run's events to see why and fix the task rather than leaving it broken.
+After creating it, run it once immediately with `mcp__scheduled-tasks__run_scheduled_task` so they see real data right away instead of placeholder text. Tell them BEFORE you do this: this first run will likely prompt them to Allow each tool it touches for the first time (Calendar, Slack if enabled, the verse WebFetch) — ask them to keep an eye on Claude Code and click through those, it's not stuck. Those approvals get stored on the task itself and reused automatically on every future run, so this is a one-time thing, not something they'll be asked to do on an ongoing basis. Wait for it to succeed before moving on; if it fails, read the run's events to see why and fix the task rather than leaving it broken.
 
 ## Phase 5 — Seed the optional personal files
 
@@ -77,6 +79,8 @@ After creating it, run it once immediately with `mcp__scheduled-tasks__run_sched
 ## Phase 6 — Run it
 
 From this directory, run `./start.sh` to open `http://localhost:4173` in their default browser (not Claude's own browser pane — it has no logins and calendar links won't resolve there). Confirm it actually loads with their real data.
+
+Mention that the page auto-reloads itself every 10 minutes (already built in, nothing to set up) so an already-open tab picks up each scheduled refresh without anyone clicking the refresh button.
 
 ## Phase 7 — Keep it running (macOS only)
 
@@ -100,4 +104,4 @@ If they're not on macOS, skip this and just mention the manual Add to Dock steps
 
 ## Wrap-up
 
-Give a short summary of what's now live (which calendars, whether Slack is on, whether the LaunchAgent is running, whether Claude Code is now a login item) and remind them the scheduled task refreshes weekdays at 6:30 AM — only while Claude Code's desktop app is open; otherwise it catches up on next launch. If they skipped the login-item step, mention once more that they can run `./scripts/enable-claude-login-item.sh` any time later if stale data becomes annoying.
+Give a short summary of what's now live (which calendars, whether Slack is on, whether the LaunchAgent is running, whether Claude Code is now a login item, and whatever refresh cadence they chose in Phase 4) and remind them that only happens while Claude Code's desktop app is open; otherwise it catches up on next launch. If they skipped the login-item step, mention once more that they can run `./scripts/enable-claude-login-item.sh` any time later if stale data becomes annoying.
