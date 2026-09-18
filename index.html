@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Today</title>
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png" />
+<link rel="icon" type="image/png" sizes="16x16" href="icons/icon-16.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180.png" />
+<meta name="theme-color" content="#f2ede4" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="styles.css?v=9" />
+</head>
+<body>
+
+<div class="ambient-glow glow-1"></div>
+<div class="ambient-glow glow-2"></div>
+<div class="grain"></div>
+
+<div class="top-controls">
+  <button class="icon-btn refresh-btn" id="refresh-btn" type="button" aria-label="Refresh dashboard">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+      <polyline points="23 4 23 10 17 10"></polyline>
+      <polyline points="1 20 1 14 7 14"></polyline>
+      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10"></path>
+      <path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"></path>
+    </svg>
+  </button>
+  <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle dark mode" aria-pressed="false">
+    <span class="theme-toggle-track">
+      <span class="theme-toggle-thumb"></span>
+    </span>
+    <span class="theme-toggle-label" id="theme-toggle-label">Light</span>
+  </button>
+</div>
+
+<main class="page">
+
+  <header class="hero glass-card">
+    <div class="hero-top">
+      <p class="eyebrow" id="eyebrow-date">LOADING &middot; TODAY</p>
+      <div class="status-pill">
+        <span class="pulse-dot"></span>
+        <span>LIVE</span>
+      </div>
+    </div>
+    <div class="hero-body">
+      <div class="hero-left">
+        <h1 class="greeting" id="greeting">Good morning,<br>Julius.</h1>
+        <div class="hero-meta">
+          <div class="clock" id="clock">--:--</div>
+          <div class="weather" id="weather">
+            <span class="weather-temp" id="weather-temp">&mdash;&deg;</span>
+            <span class="weather-desc" id="weather-desc">Fetching weather&hellip;</span>
+          </div>
+        </div>
+      </div>
+      <div class="hero-rhythm" id="hero-rhythm" hidden>
+        <p class="eyebrow" id="hero-rhythm-eyebrow">Today&rsquo;s Rhythm</p>
+        <div class="hero-rhythm-list" id="hero-rhythm-list"></div>
+      </div>
+    </div>
+  </header>
+
+  <section class="bento">
+
+    <div class="glass-card bento-schedule">
+      <div class="panel-head">
+        <p class="eyebrow">Today&rsquo;s Schedule</p>
+        <h2 class="panel-title">On the calendar</h2>
+      </div>
+      <div class="panel-body" id="schedule-list">
+        <p class="empty-state">Loading events&hellip;</p>
+      </div>
+    </div>
+
+    <div class="glass-card bento-slack">
+      <div class="panel-head">
+        <p class="eyebrow">Slack</p>
+        <h2 class="panel-title">Unread</h2>
+      </div>
+      <div class="panel-body" id="slack-list">
+        <p class="empty-state">Loading messages&hellip;</p>
+      </div>
+    </div>
+
+    <div class="glass-card bento-verse">
+      <div class="panel-head">
+        <p class="eyebrow">Verse of the Day</p>
+        <h2 class="panel-title" id="verse-reference">&nbsp;</h2>
+      </div>
+      <div class="panel-body verse-body">
+        <p class="verse-mark">&ldquo;</p>
+        <p class="verse-text" id="verse-text">Loading&hellip;</p>
+        <p class="verse-version" id="verse-version"></p>
+      </div>
+    </div>
+
+    <div class="glass-card bento-comingup" id="coming-up" hidden>
+      <div class="panel-head">
+        <p class="eyebrow">Coming Up</p>
+        <h2 class="panel-title" id="coming-up-date">&nbsp;</h2>
+      </div>
+      <div class="panel-body" id="coming-up-events"></div>
+    </div>
+
+    <div class="glass-card bento-workschedule">
+      <div class="panel-head">
+        <p class="eyebrow" id="workschedule-eyebrow">Work Schedule</p>
+        <h2 class="panel-title" id="workschedule-title">Weekly Rhythm</h2>
+      </div>
+      <div class="panel-body" id="workschedule-list">
+        <p class="empty-state">Loading schedule&hellip;</p>
+      </div>
+      <details class="workschedule-full">
+        <summary class="workschedule-full-toggle">See full week</summary>
+        <div class="workschedule-full-body" id="workschedule-full-body"></div>
+      </details>
+    </div>
+
+    <div class="glass-card bento-plan">
+      <div class="panel-head">
+        <p class="eyebrow" id="plan-eyebrow">Onboarding</p>
+        <h2 class="panel-title" id="plan-phase-title">&nbsp;</h2>
+      </div>
+      <div class="plan-progress">
+        <div class="plan-progress-track">
+          <div class="plan-progress-fill" id="plan-progress-fill"></div>
+        </div>
+        <div class="plan-phase-labels" id="plan-phase-labels"></div>
+      </div>
+      <details class="workschedule-full">
+        <summary class="workschedule-full-toggle">See full plan</summary>
+        <div class="workschedule-full-body" id="plan-full-body"></div>
+      </details>
+    </div>
+
+  </section>
+
+  <footer class="footer">
+    <p class="eyebrow" id="updated-at">Dashboard</p>
+  </footer>
+
+</main>
+
+<script src="data/dashboard.js?v=5"></script>
+<script src="data/schedule.js?v=1"></script>
+<script src="data/plan.js?v=1"></script>
+<script src="app.js?v=11"></script>
+</body>
+</html>

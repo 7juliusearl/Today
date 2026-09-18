@@ -1,0 +1,13 @@
+# Personal data generated/maintained per-user — never share someone's real
+# calendar, Slack messages, work schedule, or onboarding plan in this repo.
+# See the matching *.example.js files for the shape each one expects.
+data/dashboard.js
+data/schedule.js
+data/plan.js
+
+# Local Claude Code state — permission grants and runtime locks, not shared config.
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+
+# OS cruft
+.DS_Store

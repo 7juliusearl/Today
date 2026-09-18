@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Copy this file to ~/Library/LaunchAgents/com.today-dashboard.plist,
+  replace REPLACE_WITH_ABSOLUTE_PATH_TO_REPO below with the absolute path
+  where you cloned this repo, then run:
+
+    launchctl load -w ~/Library/LaunchAgents/com.today-dashboard.plist
+
+  This starts the dashboard's local server at login and keeps it running
+  at http://localhost:4173.
+-->
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.today-dashboard</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/usr/bin/python3</string>
+		<string>-m</string>
+		<string>http.server</string>
+		<string>4173</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>REPLACE_WITH_ABSOLUTE_PATH_TO_REPO</string>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+	<key>StandardOutPath</key>
+	<string>/tmp/today-dashboard.log</string>
+	<key>StandardErrorPath</key>
+	<string>/tmp/today-dashboard-error.log</string>
+</dict>
+</plist>
