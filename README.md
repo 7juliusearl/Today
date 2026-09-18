@@ -38,7 +38,8 @@ That's it — Claude walks you through connecting your calendar (and Slack, if y
 3. **Create a scheduled task** (`refresh-dashboard-data`) that regenerates `data/dashboard.js` on whatever cadence you want during the work day (e.g. every 30 min, 8am–5pm weekdays) — the [setup-dashboard skill](.claude/skills/setup-dashboard/SKILL.md) contains the exact task design (including some non-obvious lessons learned, like Slack having no real unread API). Point Claude at that file and have it build the same task manually. The page auto-reloads itself every 10 minutes, so an already-open tab picks up each refresh without anyone clicking anything.
 4. **Run it once**, then `./start.sh` to open `http://localhost:4173` in your regular browser (not Claude's built-in one — no logins there).
 5. **(Optional)** Copy `com.today-dashboard.plist.example` to `~/Library/LaunchAgents/com.today-dashboard.plist`, fix the path inside it, then `launchctl load -w ~/Library/LaunchAgents/com.today-dashboard.plist` to keep it running permanently.
-6. **(Optional)** Dock icon: run `./scripts/install-dock-app.sh` (macOS, builds a real `.app` and pins it — safe to re-run), or do it manually via Safari → File → Add to Dock / Chrome's install-as-app.
+6. **(Optional)** Same for `com.today-dashboard-autoupdate.plist.example` → `com.today-dashboard-autoupdate.plist`, to pull code updates from GitHub automatically every 30 minutes (`git pull --ff-only` — never overwrites local changes, just skips a conflicting update and logs it).
+7. **(Optional)** Dock icon: run `./scripts/install-dock-app.sh` (macOS, builds a real `.app` and pins it — safe to re-run), or do it manually via Safari → File → Add to Dock / Chrome's install-as-app.
 
 </details>
 
@@ -58,6 +59,17 @@ tail -f /tmp/today-dashboard.log /tmp/today-dashboard-error.log     # logs
 
 Note: the scheduled task itself only fires while the Claude Code desktop app is open — if it's closed at refresh time, it runs on next launch instead.
 
+## Staying up to date
+
+If the auto-update LaunchAgent is set up (see setup steps above), code changes pushed to this repo reach every clone within about 30–40 minutes automatically — no `git pull` needed. It's a plain `--ff-only` pull, so it can only ever fast-forward: it never force-overwrites anything, never touches your gitignored personal data, and if you've hand-edited a tracked file (like tweaking a color in `styles.css`) in a way that conflicts with an incoming change, it just skips that pull and logs it rather than clobbering your edit.
+
+```bash
+launchctl unload ~/Library/LaunchAgents/com.today-dashboard-autoupdate.plist   # stop
+launchctl load -w ~/Library/LaunchAgents/com.today-dashboard-autoupdate.plist  # start again
+tail -f /tmp/today-dashboard-autoupdate.log                                   # logs
+git pull                                                                      # do it manually, any time
+```
+
 ## Files
 
 - `index.html` / `styles.css` / `app.js` — the page
@@ -67,5 +79,7 @@ Note: the scheduled task itself only fires while the Claude Code desktop app is 
 - `start.sh` — local server launcher
 - `scripts/install-dock-app.sh` — builds and pins the Dock icon (macOS, safe to re-run)
 - `scripts/enable-claude-login-item.sh` — adds Claude Code to macOS Login Items (macOS, safe to re-run, asks first in the setup flow)
+- `scripts/auto-update.sh` — pulls code updates from GitHub (macOS/Linux, safe to re-run, never overwrites local changes)
 - `com.today-dashboard.plist.example` — LaunchAgent template for always-on background serving
+- `com.today-dashboard-autoupdate.plist.example` — LaunchAgent template for automatic `git pull`s
 - `.claude/skills/setup-dashboard/` — the one-command setup flow used above

@@ -82,15 +82,23 @@ From this directory, run `./start.sh` to open `http://localhost:4173` in their d
 
 Mention that the page auto-reloads itself every 10 minutes (already built in, nothing to set up) so an already-open tab picks up each scheduled refresh without anyone clicking the refresh button.
 
-## Phase 7 — Keep it running (macOS only)
+## Phase 7 — Keep it running, and keep it updated (macOS only)
 
-Just do this automatically — don't ask first, it's fully reversible and low-risk:
+Just do both of these automatically — don't ask first, they're fully reversible and low-risk:
+
+**The server:**
 1. Copy `com.today-dashboard.plist.example` to `~/Library/LaunchAgents/com.today-dashboard.plist`.
 2. Replace the placeholder path inside it with this repo's real absolute path (from Phase 0).
 3. `launchctl load -w ~/Library/LaunchAgents/com.today-dashboard.plist`.
 4. Verify with `lsof -nP -iTCP:4173 -sTCP:LISTEN` and a `curl -sI http://localhost:4173/`.
 
-If they're not on macOS, skip this and just tell them to run `./start.sh` whenever they want to check the dashboard.
+**Auto-updates from the shared repo:** so future pushes (new features, fixes) reach this person without them thinking about it:
+1. Copy `com.today-dashboard-autoupdate.plist.example` to `~/Library/LaunchAgents/com.today-dashboard-autoupdate.plist`.
+2. Replace the placeholder path inside it (it points at `scripts/auto-update.sh` in this repo) with the real absolute path.
+3. `launchctl load -w ~/Library/LaunchAgents/com.today-dashboard-autoupdate.plist`.
+4. This pulls every 30 minutes via `git pull --ff-only` — safe by construction (never overwrites uncommitted local changes, never force-pushes, never touches their gitignored personal data files). Mention to them that if they've hand-edited a tracked file like `styles.css`, a conflicting incoming change will just be skipped (logged to `/tmp/today-dashboard-autoupdate.log`) rather than clobbering their edit — they'd resolve that with a manual `git pull` when they notice.
+
+If they're not on macOS, skip both and just tell them to run `./start.sh` and `git pull` manually whenever they want to check for updates.
 
 ## Phase 8 — Dock icon (macOS only)
 

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Copy this file to ~/Library/LaunchAgents/com.today-dashboard-autoupdate.plist,
+  replace REPLACE_WITH_ABSOLUTE_PATH_TO_REPO/scripts/auto-update.sh below with
+  the absolute path to this script in your clone, then run:
+
+    launchctl load -w ~/Library/LaunchAgents/com.today-dashboard-autoupdate.plist
+
+  This pulls the latest code from GitHub every 30 minutes (and once at
+  login), so pushes reach your dashboard automatically. It never touches
+  your personal data files or overwrites local customizations — see the
+  comments in scripts/auto-update.sh for why that's safe.
+-->
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.today-dashboard-autoupdate</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>REPLACE_WITH_ABSOLUTE_PATH_TO_REPO/scripts/auto-update.sh</string>
+	</array>
+	<key>StartInterval</key>
+	<integer>1800</integer>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardOutPath</key>
+	<string>/tmp/today-dashboard-autoupdate.log</string>
+	<key>StandardErrorPath</key>
+	<string>/tmp/today-dashboard-autoupdate.log</string>
+</dict>
+</plist>
