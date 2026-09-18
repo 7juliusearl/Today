@@ -403,6 +403,27 @@ function renderOnboardingPlan() {
   document.getElementById("plan-full-body").innerHTML = teamBlock + phaseBlocks + goalBlock;
 }
 
+function getDismissedSlackIds() {
+  try {
+    return JSON.parse(localStorage.getItem("dashboard-dismissed-slack") || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function addDismissedSlackId(id) {
+  try {
+    let ids = getDismissedSlackIds();
+    ids.push(id);
+    if (ids.length > 50) ids = ids.slice(-50);
+    localStorage.setItem("dashboard-dismissed-slack", JSON.stringify(ids));
+  } catch {}
+}
+
+function slackItemId(it) {
+  return it.permalink || `${it.channel}::${it.preview}`;
+}
+
 function renderSlack() {
   const list = document.getElementById("slack-list");
   const slack = DATA.slack || { connected: false, items: [] };
@@ -412,21 +433,42 @@ function renderSlack() {
     return;
   }
 
-  const items = slack.items || [];
+  const dismissed = new Set(getDismissedSlackIds());
+  const items = (slack.items || []).filter((it) => !dismissed.has(slackItemId(it)));
+
   if (items.length === 0) {
     list.innerHTML = `<p class="empty-state">Nothing new since your last refresh.</p>`;
     return;
   }
 
-  list.innerHTML = items.map((it) => `
-    <div class="slack-item">
+  list.innerHTML = items.map((it) => {
+    const tag = it.permalink ? "a" : "div";
+    const linkAttrs = it.permalink
+      ? `href="${escapeHtml(it.permalink)}" target="_blank" rel="noopener"`
+      : "";
+    return `
+    <${tag} class="slack-item" data-slack-id="${escapeHtml(slackItemId(it))}" ${linkAttrs}>
       <div class="slack-item-head">
         <span class="slack-channel">${escapeHtml(it.channel)}</span>
         <span class="slack-count">${it.unreadCount ? it.unreadCount + " new" : ""}</span>
       </div>
       <p class="slack-preview">${escapeHtml(it.preview || "")}</p>
-    </div>
-  `).join("");
+    </${tag}>
+  `;
+  }).join("");
+
+  list.querySelectorAll("a.slack-item").forEach((el) => {
+    el.addEventListener("click", () => {
+      addDismissedSlackId(el.getAttribute("data-slack-id"));
+      el.classList.add("is-dismissing");
+      setTimeout(() => {
+        el.remove();
+        if (!list.querySelector(".slack-item")) {
+          list.innerHTML = `<p class="empty-state">Nothing new since your last refresh.</p>`;
+        }
+      }, 300);
+    });
+  });
 }
 
 function normalizeCalendarLink(url) {

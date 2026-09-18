@@ -82,7 +82,8 @@ window.DASHBOARD_DATA = {
       {
         channel: "#general",
         preview: "Reminder: the office is closed on Monday for the holiday!",
-        unreadCount: 3
+        unreadCount: 3,
+        permalink: "https://example.slack.com/archives/C0EXAMPLE/p1234567890000100"
       }
     ]
   },
