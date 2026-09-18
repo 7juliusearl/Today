@@ -443,19 +443,6 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-function renderFooter() {
-  const footer = document.getElementById("updated-at");
-  if (DATA.generatedAt) {
-    const d = new Date(DATA.generatedAt);
-    const fmt = new Intl.DateTimeFormat("en-US", {
-      month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
-    }).format(d);
-    footer.textContent = `Updated ${fmt}`;
-  } else {
-    footer.textContent = "Dashboard";
-  }
-}
-
 async function loadWeather(lat, lon) {
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit&timezone=auto`;
   const res = await fetch(url);
@@ -588,5 +575,4 @@ renderOnboardingPlan();
 renderSlack();
 renderVerse();
 renderStickyNote();
-renderFooter();
 initWeather();
