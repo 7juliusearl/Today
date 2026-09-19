@@ -581,6 +581,13 @@ function initRefreshButton() {
   btn.addEventListener("click", () => {
     btn.disabled = true;
     btn.classList.add("is-spinning");
+    // Best-effort: ask the on-demand checker task to do a real data pull
+    // within the next ~2 min. Fire-and-forget — if the server doesn't
+    // support this endpoint (e.g. an older cached deploy), the reload
+    // below still happens exactly as before.
+    try {
+      fetch("/api/refresh", { method: "POST" }).catch(() => {});
+    } catch {}
     setTimeout(() => window.location.reload(), 400);
   });
 }

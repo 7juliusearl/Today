@@ -74,6 +74,18 @@ Use `mcp__scheduled-tasks__create_scheduled_task` (taskId `refresh-dashboard-dat
 
 After creating it, run it once immediately with `mcp__scheduled-tasks__run_scheduled_task` so they see real data right away instead of placeholder text. Tell them BEFORE you do this: this first run will likely prompt them to Allow each tool it touches for the first time (Calendar, Slack if enabled, the verse WebFetch) — ask them to keep an eye on Claude Code and click through those, it's not stuck. Those approvals get stored on the task itself and reused automatically on every future run, so this is a one-time thing, not something they'll be asked to do on an ongoing basis. Wait for it to succeed before moving on; if it fails, read the run's events to see why and fix the task rather than leaving it broken.
 
+**Also create the on-demand checker** so the dashboard's Refresh button actually does something beyond reloading a stale file. This is what makes clicking Refresh get real data within ~2 minutes instead of waiting for the next scheduled slot:
+
+Create a second task, taskId `refresh-dashboard-on-demand`, cron `*/2 8-17 * * 1-5` (adjust the hour range to match whatever work-day window you used for the main task), with this prompt:
+
+> This is a silent, no-chat-report, cheap "checker" task. Do the minimum possible work.
+>
+> 1. Check whether the file `<absolute path>/data/.refresh-requested` exists (a simple file-existence check via Bash, e.g. `test -f` — do not use any other tools yet).
+> 2. If it does NOT exist: stop immediately, no other tool calls. This is the common case and must stay cheap.
+> 3. If it DOES exist: delete it immediately (so a rapid double-click doesn't double-trigger), then read `<absolute path to ~/.claude/scheduled-tasks/refresh-dashboard-data/SKILL.md>` and carry out EXACTLY the steps it describes, in full, writing to the exact same `data/dashboard.js`. Don't print a chat summary — just update the file and finish.
+
+This new task will need its own first-time tool approvals too (a new task means new stored approvals, separate from the main task, even for tools like Bash that seem trivial) — run it once with the flag file already present (`touch data/.refresh-requested` yourself first) to trigger and clear that approval pass immediately, same as you did for the main task above.
+
 ## Phase 5 — Seed the optional personal files
 
 `data/dashboard.js` now exists for real (previous phase). For the two *optional* extras, don't force them: briefly mention that `data/schedule.example.js` (weekly work rhythm) and `data/plan.example.js` (onboarding/goal plan) exist and can be copied to their non-`.example` names and hand-edited later if wanted — but don't do it for them unless they ask, since it's personal content only they should write.
@@ -82,7 +94,7 @@ After creating it, run it once immediately with `mcp__scheduled-tasks__run_sched
 
 From this directory, run `./start.sh` to open `http://localhost:4173` in their default browser (not Claude's own browser pane — it has no logins and calendar links won't resolve there). Confirm it actually loads with their real data.
 
-Mention that the page auto-reloads itself every 10 minutes (already built in, nothing to set up) so an already-open tab picks up each scheduled refresh without anyone clicking the refresh button.
+Mention that the page auto-reloads itself every 10 minutes (already built in, nothing to set up) so an already-open tab picks up each scheduled refresh without anyone clicking the refresh button. The refresh button itself also does more than just reload — clicking it asks the on-demand checker task (set up in Phase 4) to do a real data pull within ~2 minutes, via a small `/api/refresh` endpoint on the custom local server (`scripts/server.py` — not plain `python -m http.server`, see Phase 7).
 
 ## Phase 7 — Keep it running, and keep it updated (macOS only)
 
@@ -114,4 +126,4 @@ If they're not on macOS, skip this and just mention the manual Add to Dock steps
 
 ## Wrap-up
 
-Give a short summary of what's now live (which calendars, whether Slack is on, whether the LaunchAgent is running, whether Claude Code is now a login item, and whatever refresh cadence they chose in Phase 4) and remind them that only happens while Claude Code's desktop app is open; otherwise it catches up on next launch. If they skipped the login-item step, mention once more that they can run `./scripts/enable-claude-login-item.sh` any time later if stale data becomes annoying.
+Give a short summary of what's now live (which calendars, whether Slack is on, whether the LaunchAgent is running, whether the on-demand checker task is set up, whether Claude Code is now a login item, and whatever refresh cadence they chose in Phase 4) and remind them that only happens while Claude Code's desktop app is open; otherwise it catches up on next launch. If they skipped the login-item step, mention once more that they can run `./scripts/enable-claude-login-item.sh` any time later if stale data becomes annoying.

@@ -8,7 +8,10 @@
     launchctl load -w ~/Library/LaunchAgents/com.today-dashboard.plist
 
   This starts the dashboard's local server at login and keeps it running
-  at http://localhost:4173.
+  at http://localhost:4173. It's a small custom server (scripts/server.py),
+  not plain `python -m http.server` — it adds one endpoint the Refresh
+  button uses to request an on-demand data update (see the
+  refresh-dashboard-on-demand scheduled task set up by /setup-dashboard).
 -->
 <plist version="1.0">
 <dict>
@@ -17,9 +20,7 @@
 	<key>ProgramArguments</key>
 	<array>
 		<string>/usr/bin/python3</string>
-		<string>-m</string>
-		<string>http.server</string>
-		<string>4173</string>
+		<string>REPLACE_WITH_ABSOLUTE_PATH_TO_REPO/scripts/server.py</string>
 	</array>
 	<key>WorkingDirectory</key>
 	<string>REPLACE_WITH_ABSOLUTE_PATH_TO_REPO</string>

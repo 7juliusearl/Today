@@ -4,6 +4,7 @@
 data/dashboard.js
 data/schedule.js
 data/plan.js
+data/.refresh-requested
 
 # Local Claude Code state — permission grants and runtime locks, not shared config.
 .claude/settings.local.json
