@@ -1,0 +1,236 @@
+import AppKit
+import SwiftUI
+import EventKit
+import WebKit
+import Combine
+
+@MainActor final class CalendarModel: ObservableObject {
+    let store = EKEventStore()
+    let extras = DashboardExtras()
+    @Published var calendars: [EKCalendar] = []
+    @Published var selected: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "selectedCalendars") ?? [])
+    @Published var name: String = UserDefaults.standard.string(forKey: "firstName") ?? ""
+    @Published var primary: String = UserDefaults.standard.string(forKey: "primaryCalendar") ?? ""
+    @Published var message = "Connect to the calendars already synced with Apple Calendar."
+    @Published var script = ""
+    @Published var revision = 0
+    @Published var connected = false
+    @Published var requesting = false
+
+    init() {
+        extras.onChange = { [weak self] in
+            guard let self, self.connected else { return }
+            self.refresh()
+        }
+    }
+
+    func connect() {
+        requesting = true
+        store.requestFullAccessToEvents { granted, error in
+            Task { @MainActor in
+                self.requesting = false
+                if granted { self.loadCalendars(); self.refresh() }
+                else { self.message = error?.localizedDescription ?? "Calendar access was not granted. Enable Today Calendar Prototype in System Settings → Privacy & Security → Calendars, then connect again." }
+            }
+        }
+    }
+    func loadCalendars() {
+        calendars = store.calendars(for: .event).sorted { ($0.source.title, $0.title) < ($1.source.title, $1.title) }
+        connected = true
+        if calendars.isEmpty { message = "No calendars found. Check that your Google account is enabled in Apple Calendar." }
+    }
+    func refresh() {
+        guard EKEventStore.authorizationStatus(for: .event) == .fullAccess else {
+            connected = false; script = ""; revision += 1
+            message = "Calendar access is needed. Click Connect calendars."
+            return
+        }
+        loadCalendars()
+        let chosen = calendars.filter { selected.contains($0.calendarIdentifier) }
+        guard !chosen.isEmpty else {
+            script = ""; revision += 1
+            message = "Choose at least one calendar in Settings."
+            return
+        }
+        UserDefaults.standard.set(Array(selected), forKey: "selectedCalendars")
+        UserDefaults.standard.set(name, forKey: "firstName")
+        UserDefaults.standard.set(primary, forKey: "primaryCalendar")
+        extras.refresh()
+        let now = Date()
+        let start = Calendar.current.startOfDay(for: now)
+        let end = Calendar.current.date(byAdding: .day, value: 15, to: start)!
+        let events = store.events(matching: store.predicateForEvents(withStart: start, end: end, calendars: chosen))
+        struct Dashboard: Encodable {
+            let generatedAt: String
+            let userFirstName: String
+            let calendar: CalendarPayload
+            let verse: DashboardExtras.Verse
+            let weather: DashboardExtras.Weather
+        }
+        do {
+            let data = try JSONEncoder().encode(Dashboard(generatedAt: ISO8601DateFormatter().string(from: now),
+                userFirstName: name.isEmpty ? "there" : name, calendar: calendarPayload(events, now: now, primary: primary), verse: extras.verse, weather: extras.weather))
+            script = "window.LOCAL_CALENDAR_PROTOTYPE = true; window.DASHBOARD_DATA = " + String(decoding: data, as: UTF8.self) + ";"
+            // Load only the two explicitly supported personal files, without bundling them.
+            if let path = Bundle.main.object(forInfoDictionaryKey: "TodayPersonalDataDirectory") as? String {
+                for filename in ["schedule.js", "plan.js"] {
+                    let url = URL(fileURLWithPath: path).appendingPathComponent(filename)
+                    if let source = try? String(contentsOf: url, encoding: .utf8) {
+                        script += "\n;try {\n" + source + "\n} catch (_) {}\n"
+                    }
+                }
+            }
+            revision += 1
+            message = "Read Apple Calendar at \(now.formatted(date: .omitted, time: .shortened)). Google sync is managed by Apple Calendar."
+        } catch { message = "Could not prepare calendar data: \(error.localizedDescription)" }
+    }
+}
+
+struct DashboardWebView: NSViewRepresentable {
+    @ObservedObject var model: CalendarModel
+    func makeCoordinator() -> Coordinator { Coordinator(model) }
+    func makeNSView(context: Context) -> WKWebView {
+        let configuration = WKWebViewConfiguration()
+        configuration.userContentController.add(context.coordinator, name: "calendarRefresh")
+        let view = WKWebView(frame: .zero, configuration: configuration)
+        view.navigationDelegate = context.coordinator
+        return view
+    }
+    func updateNSView(_ view: WKWebView, context: Context) {
+        guard context.coordinator.revision != model.revision else { return }
+        context.coordinator.revision = model.revision
+        view.configuration.userContentController.removeAllUserScripts()
+        view.configuration.userContentController.addUserScript(WKUserScript(source: model.script, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+        let root = Bundle.main.resourceURL!.appendingPathComponent("dashboard")
+        view.loadFileURL(root.appendingPathComponent("index.html"), allowingReadAccessTo: root)
+    }
+    class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
+        let model: CalendarModel
+        var revision = -1
+        init(_ model: CalendarModel) { self.model = model }
+        func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+            guard message.frameInfo.isMainFrame, message.frameInfo.request.url?.isFileURL == true else { return }
+            model.refresh()
+        }
+        func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+            guard let url = navigationAction.request.url else { decisionHandler(.cancel); return }
+            if url.isFileURL { decisionHandler(.allow); return }
+            if navigationAction.navigationType == .linkActivated && ["https", "http"].contains(url.scheme ?? "") { NSWorkspace.shared.open(url) }
+            decisionHandler(.cancel)
+        }
+    }
+}
+
+struct CalendarSettingsView: View {
+    @ObservedObject var model: CalendarModel
+    @Environment(\.dismiss) var dismiss
+    @State private var selected: Set<String> = []
+    @State private var name = ""
+    @State private var primary = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("Calendar settings").font(.title2.weight(.semibold))
+            Text("Choose the Apple calendars you want to see in Today.")
+                .foregroundStyle(.secondary)
+            TextField("Your first name", text: $name).textFieldStyle(.roundedBorder)
+            Picker("Primary calendar", selection: $primary) {
+                Text("Choose…").tag("")
+                ForEach(model.calendars, id: \.calendarIdentifier) { calendar in
+                    Text("\(calendar.title) — \(calendar.source.title)").tag(calendar.calendarIdentifier)
+                }
+            }
+            Text("Calendars to display").font(.headline)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(model.calendars, id: \.calendarIdentifier) { calendar in
+                        Toggle(isOn: Binding(
+                            get: { selected.contains(calendar.calendarIdentifier) },
+                            set: { if $0 { selected.insert(calendar.calendarIdentifier) } else { selected.remove(calendar.calendarIdentifier) } }
+                        )) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(calendar.title)
+                                Text(calendar.source.title).font(.caption).foregroundStyle(.secondary)
+                            }
+                        }.toggleStyle(.checkbox)
+                    }
+                }.frame(maxWidth: .infinity, alignment: .leading).padding(12)
+            }.frame(height: 260).background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
+            Text("Google syncing is handled by Apple Calendar. Today only reads events and keeps them on this Mac.")
+                .font(.callout).foregroundStyle(.secondary)
+            HStack {
+                Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
+                Spacer()
+                Text("\(selected.count) selected").foregroundStyle(.secondary)
+                Button("Save") {
+                    model.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+                    model.primary = primary
+                    model.selected = selected
+                    model.refresh()
+                    if !model.script.isEmpty { dismiss() }
+                }.keyboardShortcut(.defaultAction)
+                    .disabled(!model.calendars.contains { selected.contains($0.calendarIdentifier) })
+            }
+        }.padding(24).frame(width: 540)
+        .onAppear {
+            selected = model.selected
+            name = model.name
+            primary = model.primary
+        }
+        .onChange(of: primary) { _, value in
+            if !value.isEmpty { selected.insert(value) }
+        }
+    }
+}
+
+struct PrototypeView: View {
+    @StateObject var model = CalendarModel()
+    @State private var settingsPresented = false
+    let timer = Timer.publish(every: 300, on: .main, in: .common).autoconnect()
+    var body: some View {
+        Group {
+            if !model.script.isEmpty {
+                DashboardWebView(model: model)
+            } else {
+                VStack(spacing: 20) {
+                    Image(systemName: "calendar").font(.system(size: 48)).foregroundStyle(.orange)
+                    Text("Your day, in one place.").font(.largeTitle.weight(.semibold))
+                    Text(model.message).multilineTextAlignment(.center).foregroundStyle(.secondary).frame(maxWidth: 440)
+                    if model.connected {
+                        Button("Choose calendars") { settingsPresented = true }.buttonStyle(.borderedProminent)
+                    } else {
+                        Button(model.requesting ? "Connecting…" : "Connect calendars") { model.connect() }
+                            .buttonStyle(.borderedProminent).disabled(model.requesting)
+                    }
+                    Text("Calendar data stays on this Mac.").font(.caption).foregroundStyle(.secondary)
+                }.frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+        .frame(minWidth: 900, minHeight: 700)
+        .navigationTitle("Today")
+        .toolbar {
+            ToolbarItem {
+                Button { model.loadCalendars(); settingsPresented = true } label: {
+                    Label("Settings", systemImage: "gearshape")
+                }.disabled(!model.connected).help("Choose calendars and edit your name")
+            }
+        }
+        .sheet(isPresented: $settingsPresented) { CalendarSettingsView(model: model) }
+        .onAppear {
+            if EKEventStore.authorizationStatus(for: .event) == .fullAccess { model.refresh() }
+        }
+        .onChange(of: model.connected) { _, connected in
+            if connected && model.script.isEmpty { settingsPresented = true }
+        }
+        .onReceive(timer) { _ in if model.connected && !settingsPresented { model.refresh() } }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            if model.connected && !settingsPresented { model.refresh() }
+        }
+    }
+}
+
+@main struct TodayCalendarApp: App {
+    var body: some Scene {
+        WindowGroup { PrototypeView() }.defaultSize(width: 1200, height: 850)
+    }
+}

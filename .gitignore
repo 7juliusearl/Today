@@ -12,3 +12,6 @@ data/.refresh-requested
 
 # OS cruft
 .DS_Store
+
+# Local native calendar prototype build output
+build/

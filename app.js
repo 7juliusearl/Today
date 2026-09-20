@@ -517,6 +517,14 @@ async function loadWeather(lat, lon) {
 }
 
 function initWeather() {
+  if (window.LOCAL_CALENDAR_PROTOTYPE) {
+    const weather = DATA.weather || {};
+    if (Number.isFinite(weather.temperature)) {
+      document.getElementById("weather-temp").textContent = `${Math.round(weather.temperature)}°`;
+    }
+    document.getElementById("weather-desc").textContent = weather.message || WEATHER_CODES[weather.code] || "Weather unavailable";
+    return;
+  }
   if (!navigator.geolocation) {
     document.getElementById("weather-desc").textContent = "Location unavailable";
     return;
@@ -617,6 +625,13 @@ async function pendingRefreshSince() {
 function initRefreshButton() {
   const btn = document.getElementById("refresh-btn");
   const status = document.getElementById("refresh-status");
+  if (window.LOCAL_CALENDAR_PROTOTYPE) {
+    btn.title = "Read the latest events synced to Apple Calendar";
+    btn.addEventListener("click", () => {
+      window.webkit.messageHandlers.calendarRefresh.postMessage("refresh");
+    });
+    return;
+  }
   const POLL_INTERVAL_MS = 8000;
   const MAX_WAIT_MS = 150000; // a bit past the ~2 min the on-demand checker needs
 
@@ -724,6 +739,7 @@ function initRefreshButton() {
 }
 
 function initAutoRefresh() {
+  if (window.LOCAL_CALENDAR_PROTOTYPE) return; // The Mac app refreshes every five minutes.
   // Data refreshes every 30 min (8am-5pm weekdays) — reload periodically
   // so an already-open tab picks that up without anyone clicking refresh.
   setInterval(() => window.location.reload(), 10 * 60 * 1000);
