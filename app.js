@@ -442,6 +442,41 @@ function toSlackAppLink(permalink) {
   }
 }
 
+function renderMail() {
+  const list = document.getElementById("mail-list");
+  if (!list) return;
+  const mail = DATA.mail || {};
+  document.getElementById("mail-title").textContent = mail.updatedAt
+    ? `${mail.unreadCount} unread${mail.status ? " · Last update" : ""}` : "Inbox";
+  list.replaceChildren();
+  const note = document.createElement("p");
+  note.className = "empty-state";
+  note.textContent = mail.status || (mail.updatedAt
+    ? `${mail.label} · Latest unread from the past 14 days · Updated ${new Date(mail.updatedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
+    : "Connect Apple Mail in Settings.");
+  list.append(note);
+  for (const item of mail.items || []) {
+    const button = document.createElement("button");
+    button.className = "mail-item";
+    button.type = "button";
+    button.disabled = !item.messageID;
+    for (const [className, value] of [["mail-sender", item.sender], ["mail-subject", item.subject], ["mail-date", new Date(item.receivedAt).toLocaleString()]]) {
+      const span = document.createElement("span");
+      span.className = className;
+      span.textContent = value;
+      button.append(span);
+    }
+    button.addEventListener("click", () => window.webkit.messageHandlers.mailOpen.postMessage(item.id));
+    list.append(button);
+  }
+  if (mail.updatedAt && !mail.status && !(mail.items || []).length) {
+    const empty = document.createElement("p");
+    empty.className = "empty-state";
+    empty.textContent = "No unread messages from the past 14 days.";
+    list.append(empty);
+  }
+}
+
 function renderSlack() {
   const list = document.getElementById("slack-list");
   const slack = DATA.slack || { connected: false, items: [] };
@@ -825,6 +860,7 @@ renderWorkSchedule();
 renderHeroRhythm();
 renderOnboardingPlan();
 renderSlack();
+renderMail();
 renderVerse();
 renderStickyNotes();
 initWeather();

@@ -7,10 +7,13 @@ xcrun swiftc -parse-as-library -target "$(uname -m)-apple-macosx14.0" \
   -module-cache-path "$REPO_DIR/build/swift-module-cache" \
   "$REPO_DIR/prototype/calendar/CalendarData.swift" \
   "$REPO_DIR/prototype/calendar/DashboardExtras.swift" \
+  "$REPO_DIR/prototype/calendar/AppLifecycle.swift" \
+  "$REPO_DIR/prototype/calendar/MailData.swift" \
   "$REPO_DIR/prototype/calendar/TodayCalendar.swift" \
   -o "$APP_DIR/Contents/MacOS/TodayCalendar"
 cp "$REPO_DIR/app.js" "$REPO_DIR/styles.css" "$APP_DIR/Contents/Resources/dashboard/"
 cp "$REPO_DIR/icons/"*.png "$APP_DIR/Contents/Resources/dashboard/icons/"
+cp "$REPO_DIR/prototype/calendar/mail/read-mail.js" "$APP_DIR/Contents/Resources/"
 cp "$REPO_DIR/icons/Today.icns" "$APP_DIR/Contents/Resources/"
 # Only public UI assets are bundled. Never copy data/ or the repository wholesale.
 python3 - "$REPO_DIR" "$APP_DIR" <<'PY'
@@ -19,10 +22,19 @@ repo, app = map(pathlib.Path, sys.argv[1:])
 html = (repo / 'index.html').read_text()
 html = re.sub(r'<link[^>]+rel="manifest"[^>]*>', '', html)
 html = re.sub(r'<script src="data/[^\"]+"></script>', '', html)
-html = html.replace('</head>', '''<style>
+html = html.replace('<div class="glass-card bento-comingup"', '''<div class="glass-card bento-mail">
+  <div class="panel-head"><p class="eyebrow">Apple Mail</p><h2 class="panel-title" id="mail-title">Inbox</h2></div>
+  <div class="panel-body" id="mail-list"></div>
+</div>
+<div class="glass-card bento-comingup"''')
+html = html.replace('</head>',  '''<style>
 .bento-slack, .sticky-notes { display: none !important; }
-.bento-comingup { grid-column: span 12; }
-@media (max-width: 800px) { .bento-schedule, .bento-comingup { grid-column: span 12; } }
+.bento-mail, .bento-comingup { grid-column: span 6; }
+.bento-mail { padding: 30px; }
+.mail-item { display: block; width: 100%; text-align: left; background: none; border: 0; border-bottom: 1px solid #8883; padding: 14px 0; color: inherit; font: inherit; cursor: pointer; }
+.mail-sender, .mail-date { display: block; font-size: 12px; opacity: .65; margin: 5px 0; }
+.mail-subject { font-weight: 600; overflow-wrap: anywhere; }
+@media (max-width: 800px) { .bento-schedule, .bento-mail, .bento-comingup { grid-column: span 12; } }
 </style></head>''')
 (app / 'Contents/Resources/dashboard/index.html').write_text(html)
 PY
@@ -38,6 +50,7 @@ cat > "$APP_DIR/Contents/Info.plist" <<'PLIST'
 <key>CFBundleShortVersionString</key><string>0.1</string>
 <key>CFBundleIconFile</key><string>Today.icns</string>
 <key>LSMinimumSystemVersion</key><string>14.0</string>
+<key>NSAppleEventsUsageDescription</key><string>Read unread message headers from the mailbox you choose in Apple Mail and open messages when you click them. Today does not send or change mail during refresh.</string>
 <key>NSLocationWhenInUseUsageDescription</key><string>Show local weather in Today. Only approximate coordinates are sent to the weather service.</string>
 <key>NSLocationUsageDescription</key><string>Show local weather in Today using your approximate location.</string>
 <key>NSCalendarsFullAccessUsageDescription</key><string>Show events from calendars you select in your local Today dashboard. This prototype only reads events and does not upload them.</string>

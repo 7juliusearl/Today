@@ -3,10 +3,14 @@ import SwiftUI
 import EventKit
 import WebKit
 import Combine
+import ServiceManagement
 
 @MainActor final class CalendarModel: ObservableObject {
     let store = EKEventStore()
     let extras = DashboardExtras()
+    let login = LoginSettings()
+    let mail = MailModel()
+    private var automaticRefresh: AutoRefreshController?
     @Published var calendars: [EKCalendar] = []
     @Published var selected: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "selectedCalendars") ?? [])
     @Published var name: String = UserDefaults.standard.string(forKey: "firstName") ?? ""
@@ -18,6 +22,14 @@ import Combine
     @Published var requesting = false
 
     init() {
+        automaticRefresh = AutoRefreshController { [weak self] in
+            guard let self, self.connected else { return }
+            self.refresh()
+        }
+        mail.onChange = { [weak self] in
+            guard let self, self.connected else { return }
+            self.refresh()
+        }
         extras.onChange = { [weak self] in
             guard let self, self.connected else { return }
             self.refresh()
@@ -56,6 +68,7 @@ import Combine
         UserDefaults.standard.set(name, forKey: "firstName")
         UserDefaults.standard.set(primary, forKey: "primaryCalendar")
         extras.refresh()
+        mail.refresh()
         let now = Date()
         let start = Calendar.current.startOfDay(for: now)
         let end = Calendar.current.date(byAdding: .day, value: 15, to: start)!
@@ -66,10 +79,11 @@ import Combine
             let calendar: CalendarPayload
             let verse: DashboardExtras.Verse
             let weather: DashboardExtras.Weather
+            let mail: MailSnapshot
         }
         do {
             let data = try JSONEncoder().encode(Dashboard(generatedAt: ISO8601DateFormatter().string(from: now),
-                userFirstName: name.isEmpty ? "there" : name, calendar: calendarPayload(events, now: now, primary: primary), verse: extras.verse, weather: extras.weather))
+                userFirstName: name.isEmpty ? "there" : name, calendar: calendarPayload(events, now: now, primary: primary), verse: extras.verse, weather: extras.weather, mail: mail.snapshot))
             script = "window.LOCAL_CALENDAR_PROTOTYPE = true; window.DASHBOARD_DATA = " + String(decoding: data, as: UTF8.self) + ";"
             // Load only the two explicitly supported personal files, without bundling them.
             if let path = Bundle.main.object(forInfoDictionaryKey: "TodayPersonalDataDirectory") as? String {
@@ -92,6 +106,7 @@ struct DashboardWebView: NSViewRepresentable {
     func makeNSView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
         configuration.userContentController.add(context.coordinator, name: "calendarRefresh")
+        configuration.userContentController.add(context.coordinator, name: "mailOpen")
         let view = WKWebView(frame: .zero, configuration: configuration)
         view.navigationDelegate = context.coordinator
         return view
@@ -110,7 +125,12 @@ struct DashboardWebView: NSViewRepresentable {
         init(_ model: CalendarModel) { self.model = model }
         func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
             guard message.frameInfo.isMainFrame, message.frameInfo.request.url?.isFileURL == true else { return }
-            model.refresh()
+            if message.name == "mailOpen", let id = message.body as? String {
+                model.mail.openMessage(id: id)
+            } else if message.name == "calendarRefresh" {
+                model.mail.refresh(force: true)
+                model.refresh()
+            }
         }
         func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
             guard let url = navigationAction.request.url else { decisionHandler(.cancel); return }
@@ -123,16 +143,32 @@ struct DashboardWebView: NSViewRepresentable {
 
 struct CalendarSettingsView: View {
     @ObservedObject var model: CalendarModel
+    @ObservedObject var login: LoginSettings
     @Environment(\.dismiss) var dismiss
     @State private var selected: Set<String> = []
     @State private var name = ""
     @State private var primary = ""
 
     var body: some View {
+        ScrollView {
         VStack(alignment: .leading, spacing: 18) {
-            Text("Calendar settings").font(.title2.weight(.semibold))
+            Text("Settings").font(.title2.weight(.semibold))
             Text("Choose the Apple calendars you want to see in Today.")
                 .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 6) {
+                Toggle("Launch at login", isOn: Binding(
+                    get: { login.enabled }, set: { login.setEnabled($0) }
+                ))
+                Text(login.explanation).font(.caption).foregroundStyle(.secondary)
+                Text("This switch takes effect immediately.").font(.caption).foregroundStyle(.secondary)
+                if login.status == .requiresApproval {
+                    Button("Open Login Items Settings") { SMAppService.openSystemSettingsLoginItems() }
+                }
+                if let error = login.error { Text(error).font(.caption).foregroundStyle(.red) }
+            }
+            Divider()
+            MailSettingsView(mail: model.mail)
+            Divider()
             TextField("Your first name", text: $name).textFieldStyle(.roundedBorder)
             Picker("Primary calendar", selection: $primary) {
                 Text("Choose…").tag("")
@@ -155,7 +191,7 @@ struct CalendarSettingsView: View {
                         }.toggleStyle(.checkbox)
                     }
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(12)
-            }.frame(height: 260).background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
+            }.frame(height: 220).background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
             Text("Google syncing is handled by Apple Calendar. Today only reads events and keeps them on this Mac.")
                 .font(.callout).foregroundStyle(.secondary)
             HStack {
@@ -171,12 +207,15 @@ struct CalendarSettingsView: View {
                 }.keyboardShortcut(.defaultAction)
                     .disabled(!model.calendars.contains { selected.contains($0.calendarIdentifier) })
             }
-        }.padding(24).frame(width: 540)
+        }.padding(24)
+        }.frame(width: 590, height: 680)
         .onAppear {
+            login.reload()
             selected = model.selected
             name = model.name
             primary = model.primary
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in login.reload() }
         .onChange(of: primary) { _, value in
             if !value.isEmpty { selected.insert(value) }
         }
@@ -215,7 +254,7 @@ struct PrototypeView: View {
                 }.disabled(!model.connected).help("Choose calendars and edit your name")
             }
         }
-        .sheet(isPresented: $settingsPresented) { CalendarSettingsView(model: model) }
+        .sheet(isPresented: $settingsPresented) { CalendarSettingsView(model: model, login: model.login) }
         .onAppear {
             if EKEventStore.authorizationStatus(for: .event) == .fullAccess { model.refresh() }
         }
