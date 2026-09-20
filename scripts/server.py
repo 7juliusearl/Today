@@ -25,6 +25,15 @@ FLAG_PATH = os.path.join(REPO_DIR, "data", ".refresh-requested")
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
+    def end_headers(self):
+        # This server has no CDN and one user — there's no upside to letting
+        # the browser cache anything, and real downsides: without this, a
+        # plain reload can serve a stale cached copy of data/dashboard.js
+        # even after a real refresh just finished writing fresh data,
+        # because that script tag's URL never changes on its own.
+        self.send_header("Cache-Control", "no-store")
+        super().end_headers()
+
     def do_POST(self):
         if self.path == "/api/refresh":
             with open(FLAG_PATH, "w") as f:

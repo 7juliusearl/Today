@@ -592,13 +592,23 @@ async function currentDashboardGeneratedAt() {
 // timestamp of when it was requested. Fetching it directly tells us,
 // from any page load (not just the one that clicked the button), whether
 // a refresh is already in flight and since when.
+//
+// If the checker task ever crashes mid-run without cleaning up (killed,
+// machine slept mid-task, etc.), this file could in theory be left behind
+// indefinitely. Treat anything older than STALE_MS as abandoned rather
+// than "in progress" — otherwise every future page load would compute an
+// already-passed deadline and reload immediately, forever.
+const STALE_FLAG_MS = 10 * 60 * 1000; // 10 min — comfortably past the ~2 min a real refresh needs
+
 async function pendingRefreshSince() {
   try {
     const res = await fetch(`data/.refresh-requested?poll=${Date.now()}`, { cache: "no-store" });
     if (!res.ok) return null;
     const text = (await res.text()).trim();
     const seconds = parseFloat(text);
-    return Number.isFinite(seconds) ? seconds * 1000 : Date.now();
+    const since = Number.isFinite(seconds) ? seconds * 1000 : Date.now();
+    if (Date.now() - since > STALE_FLAG_MS) return null;
+    return since;
   } catch {
     return null;
   }
@@ -610,27 +620,58 @@ function initRefreshButton() {
   const POLL_INTERVAL_MS = 8000;
   const MAX_WAIT_MS = 150000; // a bit past the ~2 min the on-demand checker needs
 
-  function watchForUpdate(deadline) {
-    const startedAt = DATA.generatedAt || null;
-    btn.disabled = true;
-    btn.classList.add("is-spinning");
-    status.hidden = false;
+  // Background tabs get their timers throttled or fully paused by the
+  // browser/OS (App Nap, tab freezing, the laptop sleeping) — a plain
+  // setTimeout chain can silently stall for many minutes while a tab sits
+  // unfocused. `watchTimer` is the pending setTimeout for the next
+  // scheduled check; `watching` marks whether a watch is active at all.
+  // Alongside its own timer, a check also re-runs the instant the tab
+  // becomes visible/focused again, so a stalled wait catches up right away
+  // instead of waiting on a throttled timer that may not fire soon.
+  let watching = false;
+  let watchTimer = null;
+  let checkInFlight = false;
 
-    (async function poll() {
+  async function checkOnce(startedAt, deadline) {
+    if (!watching || checkInFlight) return;
+    checkInFlight = true;
+    try {
       const latest = await currentDashboardGeneratedAt();
+      if (!watching) return; // a newer watch superseded this one while we awaited
       if (latest && latest !== startedAt) {
+        watching = false;
         status.textContent = "Updated";
         setTimeout(() => window.location.reload(), 300);
         return;
       }
       if (Date.now() >= deadline) {
+        watching = false;
         status.textContent = "Reloading…";
         setTimeout(() => window.location.reload(), 300);
         return;
       }
       status.textContent = "Refreshing…";
-      setTimeout(poll, POLL_INTERVAL_MS);
-    })();
+      clearTimeout(watchTimer);
+      watchTimer = setTimeout(() => checkOnce(startedAt, deadline), POLL_INTERVAL_MS);
+    } finally {
+      checkInFlight = false;
+    }
+  }
+
+  function watchForUpdate(deadline) {
+    const startedAt = DATA.generatedAt || null;
+    watching = true;
+    btn.disabled = true;
+    btn.classList.add("is-spinning");
+    status.hidden = false;
+    clearTimeout(watchTimer);
+    checkOnce(startedAt, deadline);
+
+    const catchUp = () => {
+      if (watching && document.visibilityState === "visible") checkOnce(startedAt, deadline);
+    };
+    document.addEventListener("visibilitychange", catchUp);
+    window.addEventListener("focus", catchUp);
   }
 
   btn.addEventListener("click", async () => {
