@@ -126,4 +126,11 @@ If they're not on macOS, skip this and just mention the manual Add to Dock steps
 
 ## Wrap-up
 
-Give a short summary of what's now live (which calendars, whether Slack is on, whether the LaunchAgent is running, whether the on-demand checker task is set up, whether Claude Code is now a login item, and whatever refresh cadence they chose in Phase 4) and remind them that only happens while Claude Code's desktop app is open; otherwise it catches up on next launch. If they skipped the login-item step, mention once more that they can run `./scripts/enable-claude-login-item.sh` any time later if stale data becomes annoying.
+Give a short summary of what's now live (which calendars, whether Slack is on, whether the LaunchAgent is running, whether the on-demand checker task is set up, whether Claude Code is now a login item, and whatever refresh cadence they chose in Phase 4). Then tell them, in your own words, how staying current actually works — cover all of this so nothing surprises them later:
+
+- It refreshes itself automatically in the background on the cadence they picked (e.g. every 30 min during work hours) — no action needed.
+- If they leave the tab open, it reloads itself every 10 minutes to show whatever's latest.
+- Hitting the Refresh button gets real fresh data within about 1–2 minutes — not instant (there's no way for a browser button to instantly trigger Claude Code directly; the on-demand checker task is the fastest bridge available), but much faster than waiting for the next scheduled slot.
+- None of this works unless Claude Code is open on their machine — that's exactly what the login-item step (Phase 1.5) solves, so mention whether they said yes to it, and if they skipped it, remind them they can run `./scripts/enable-claude-login-item.sh` any time later if stale data becomes annoying.
+- The very first time each scheduled task actually runs, Claude Code will show a few "Allow" prompts (Calendar, Slack, WebFetch, etc.) — that's normal and one-time, not something they'll be asked repeatedly. You already walk them through this live in Phase 4, but it's worth restating here so it's not a surprise later if it happens again after some future change to the task.
+- If they don't have Slack workspace-admin access, that's completely fine and unrelated to any of this — Slack works through Claude Code's own connector either way, not through anything requiring admin rights.
