@@ -10,7 +10,7 @@ Dark glass, rounded bento cards, a warm orange accent — designed to feel like 
 - **Coming Up** — the next few days with something on them, when today's clear
 - **Needs Your RSVP** — every calendar invite you haven't responded to yet, regardless of how far out it is
 - **Slack** — messages posted since the dashboard's last refresh (there's no true "unread" API, so this is the closest honest equivalent)
-- **Sticky notes** — a coworker can leave you an encouraging note by DMing you on Slack starting with 📌; it shows up as an actual rotated sticky note stuck to a corner of the page (a different spot each time, dismissible, sticks around ~2 weeks or until a newer one replaces it)
+- **Sticky notes** — a coworker can leave you an encouraging note by DMing you on Slack starting with 📌 (or `:pushpin:` / `note:` if the emoji doesn't come through); it shows up as an actual rotated sticky note stuck to a corner of the page. Up to 3 can be stuck up at once from different people, each in its own spot — dismissible, sticks around ~2 weeks or until whoever sent it sends a newer one
 - **Verse of the Day** — pulled from a public verse API each morning
 - **Weather** — live, via your browser's location, no API key needed
 - **Work Schedule / Onboarding** *(optional)* — your own hand-maintained weekly rhythm and 30/60/90 plan, if you fill them in

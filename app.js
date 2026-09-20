@@ -1,4 +1,4 @@
-const DATA = window.DASHBOARD_DATA || { calendar: { events: [], upcoming: [], pendingInvites: [] }, slack: { connected: false, items: [] }, stickyNote: null };
+const DATA = window.DASHBOARD_DATA || { calendar: { events: [], upcoming: [], pendingInvites: [] }, slack: { connected: false, items: [] }, stickyNotes: [] };
 
 const WEATHER_CODES = {
   0: "Clear sky", 1: "Mostly clear", 2: "Partly cloudy", 3: "Overcast",
@@ -576,19 +576,61 @@ function initThemeToggle() {
   });
 }
 
+async function currentDashboardGeneratedAt() {
+  try {
+    const res = await fetch(`data/dashboard.js?poll=${Date.now()}`, { cache: "no-store" });
+    const text = await res.text();
+    const match = text.match(/generatedAt:\s*"([^"]+)"/);
+    return match ? match[1] : null;
+  } catch {
+    return null;
+  }
+}
+
 function initRefreshButton() {
   const btn = document.getElementById("refresh-btn");
-  btn.addEventListener("click", () => {
+  const status = document.getElementById("refresh-status");
+  const POLL_INTERVAL_MS = 8000;
+  const MAX_WAIT_MS = 150000; // a bit past the ~2 min the on-demand checker needs
+
+  btn.addEventListener("click", async () => {
     btn.disabled = true;
     btn.classList.add("is-spinning");
+    status.hidden = false;
+    status.textContent = "Requesting…";
+
     // Best-effort: ask the on-demand checker task to do a real data pull
-    // within the next ~2 min. Fire-and-forget — if the server doesn't
-    // support this endpoint (e.g. an older cached deploy), the reload
-    // below still happens exactly as before.
+    // within the next ~2 min. If the server doesn't support this endpoint
+    // (e.g. an older cached deploy), we just fall back to a plain reload.
+    let requested = false;
     try {
-      fetch("/api/refresh", { method: "POST" }).catch(() => {});
+      const res = await fetch("/api/refresh", { method: "POST" });
+      requested = res.ok;
     } catch {}
-    setTimeout(() => window.location.reload(), 400);
+
+    if (!requested) {
+      setTimeout(() => window.location.reload(), 400);
+      return;
+    }
+
+    const startedAt = DATA.generatedAt || null;
+    const deadline = Date.now() + MAX_WAIT_MS;
+
+    (async function poll() {
+      const latest = await currentDashboardGeneratedAt();
+      if (latest && latest !== startedAt) {
+        status.textContent = "Updated";
+        setTimeout(() => window.location.reload(), 300);
+        return;
+      }
+      if (Date.now() >= deadline) {
+        status.textContent = "Reloading…";
+        setTimeout(() => window.location.reload(), 300);
+        return;
+      }
+      status.textContent = "Refreshing…";
+      setTimeout(poll, POLL_INTERVAL_MS);
+    })();
   });
 }
 
@@ -598,35 +640,73 @@ function initAutoRefresh() {
   setInterval(() => window.location.reload(), 10 * 60 * 1000);
 }
 
-function renderStickyNote() {
-  const note = DATA.stickyNote;
-  const el = document.getElementById("sticky-note");
-  if (!note || !note.text) {
-    el.hidden = true;
-    return;
-  }
+function stickyNoteId(note) {
+  return `${note.ts || ""}-${note.from || ""}-${note.text.length}`;
+}
 
-  const noteId = `${note.ts || ""}-${note.text.length}`;
-  let dismissedId = null;
-  try { dismissedId = localStorage.getItem("dashboard-dismissed-note"); } catch {}
-  if (dismissedId === noteId) {
-    el.hidden = true;
-    return;
+function getDismissedNoteIds() {
+  try {
+    return JSON.parse(localStorage.getItem("dashboard-dismissed-notes") || "[]");
+  } catch {
+    return [];
   }
+}
 
+function addDismissedNoteId(id) {
+  try {
+    let ids = getDismissedNoteIds();
+    ids.push(id);
+    if (ids.length > 30) ids = ids.slice(-30);
+    localStorage.setItem("dashboard-dismissed-notes", JSON.stringify(ids));
+  } catch {}
+}
+
+function hashString(str) {
   let hash = 0;
-  for (let i = 0; i < noteId.length; i++) hash = (hash * 31 + noteId.charCodeAt(i)) >>> 0;
+  for (let i = 0; i < str.length; i++) hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
+  return hash;
+}
+
+function renderStickyNotes() {
+  const container = document.getElementById("sticky-notes");
+  container.innerHTML = "";
+
+  // Accept both the old singular `stickyNote` shape and the new plural
+  // `stickyNotes` array, so cached data mid-transition still renders.
+  const raw = DATA.stickyNotes || (DATA.stickyNote ? [DATA.stickyNote] : []);
+  const dismissed = new Set(getDismissedNoteIds());
+  const notes = raw.filter((n) => n && n.text && !dismissed.has(stickyNoteId(n)));
+  if (notes.length === 0) return;
+
   const positionCount = 5;
-  el.className = `sticky-note sticky-pos-${hash % positionCount}`;
+  const usedPositions = new Set();
 
-  document.getElementById("sticky-note-text").textContent = note.text;
-  document.getElementById("sticky-note-from").textContent = note.from ? `— ${note.from}` : "";
-  el.hidden = false;
+  notes.forEach((note) => {
+    const noteId = stickyNoteId(note);
+    let position = hashString(noteId) % positionCount;
+    // Nudge to an unused slot so simultaneous notes don't stack on each other.
+    let attempts = 0;
+    while (usedPositions.has(position) && attempts < positionCount) {
+      position = (position + 1) % positionCount;
+      attempts++;
+    }
+    usedPositions.add(position);
 
-  document.getElementById("sticky-note-dismiss").onclick = () => {
-    el.hidden = true;
-    try { localStorage.setItem("dashboard-dismissed-note", noteId); } catch {}
-  };
+    const el = document.createElement("div");
+    el.className = `sticky-note sticky-pos-${position}`;
+    el.innerHTML = `
+      <button class="sticky-note-dismiss" type="button" aria-label="Dismiss note">&times;</button>
+      <p class="sticky-note-text"></p>
+      <p class="sticky-note-from"></p>
+    `;
+    el.querySelector(".sticky-note-text").textContent = note.text;
+    el.querySelector(".sticky-note-from").textContent = note.from ? `— ${note.from}` : "";
+    el.querySelector(".sticky-note-dismiss").onclick = () => {
+      el.remove();
+      addDismissedNoteId(noteId);
+    };
+    container.appendChild(el);
+  });
 }
 
 initThemeToggle();
@@ -641,5 +721,5 @@ renderHeroRhythm();
 renderOnboardingPlan();
 renderSlack();
 renderVerse();
-renderStickyNote();
+renderStickyNotes();
 initWeather();

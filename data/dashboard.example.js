@@ -87,11 +87,18 @@ window.DASHBOARD_DATA = {
       }
     ]
   },
-  stickyNote: {
-    text: "Hey! Just wanted to say you're doing an awesome job settling in.",
-    from: "Jordan",
-    ts: "2026-01-05T09:00:00-05:00"
-  },
+  stickyNotes: [
+    {
+      text: "Hey! Just wanted to say you're doing an awesome job settling in.",
+      from: "Jordan",
+      ts: "2026-01-05T09:00:00-05:00"
+    },
+    {
+      text: "Loved your idea in standup today — let's talk more tomorrow!",
+      from: "Sam",
+      ts: "2026-01-05T10:30:00-05:00"
+    }
+  ],
   verse: {
     text: "I can do all things through Christ who strengthens me.",
     reference: "Philippians 4:13",

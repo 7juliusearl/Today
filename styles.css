@@ -1085,6 +1085,15 @@ a.slack-item:hover {
   gap: 10px;
 }
 
+.refresh-status {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
 .icon-btn {
   display: flex;
   align-items: center;
@@ -1172,6 +1181,9 @@ a.slack-item:hover {
   .top-controls {
     top: 16px;
     right: 16px;
+  }
+  .refresh-status {
+    display: none;
   }
   .theme-toggle-label {
     display: none;
@@ -1286,11 +1298,21 @@ a.slack-item:hover {
 .sticky-pos-4 { top: 46vh; right: 24px; transform: rotate(5deg); }
 
 @media (max-width: 700px) {
-  .sticky-pos-0, .sticky-pos-1, .sticky-pos-2, .sticky-pos-3, .sticky-pos-4 {
-    top: auto;
-    right: 16px;
+  /* Multiple simultaneous notes would otherwise all land on the exact same
+     fixed spot on narrow screens. Let the container stack them in normal
+     flow instead, so any number of notes space out regardless of length. */
+  .sticky-notes {
+    position: fixed;
     left: 16px;
+    right: 16px;
     bottom: 16px;
+    z-index: 40;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 10px;
+  }
+  .sticky-pos-0, .sticky-pos-1, .sticky-pos-2, .sticky-pos-3, .sticky-pos-4 {
+    position: static;
     width: auto;
     transform: rotate(-2deg);
   }
