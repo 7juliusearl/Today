@@ -587,34 +587,34 @@ async function currentDashboardGeneratedAt() {
   }
 }
 
+// The flag file at data/.refresh-requested exists for the whole time a
+// refresh is queued or actively running, and its content is a unix
+// timestamp of when it was requested. Fetching it directly tells us,
+// from any page load (not just the one that clicked the button), whether
+// a refresh is already in flight and since when.
+async function pendingRefreshSince() {
+  try {
+    const res = await fetch(`data/.refresh-requested?poll=${Date.now()}`, { cache: "no-store" });
+    if (!res.ok) return null;
+    const text = (await res.text()).trim();
+    const seconds = parseFloat(text);
+    return Number.isFinite(seconds) ? seconds * 1000 : Date.now();
+  } catch {
+    return null;
+  }
+}
+
 function initRefreshButton() {
   const btn = document.getElementById("refresh-btn");
   const status = document.getElementById("refresh-status");
   const POLL_INTERVAL_MS = 8000;
   const MAX_WAIT_MS = 150000; // a bit past the ~2 min the on-demand checker needs
 
-  btn.addEventListener("click", async () => {
+  function watchForUpdate(deadline) {
+    const startedAt = DATA.generatedAt || null;
     btn.disabled = true;
     btn.classList.add("is-spinning");
     status.hidden = false;
-    status.textContent = "Requesting…";
-
-    // Best-effort: ask the on-demand checker task to do a real data pull
-    // within the next ~2 min. If the server doesn't support this endpoint
-    // (e.g. an older cached deploy), we just fall back to a plain reload.
-    let requested = false;
-    try {
-      const res = await fetch("/api/refresh", { method: "POST" });
-      requested = res.ok;
-    } catch {}
-
-    if (!requested) {
-      setTimeout(() => window.location.reload(), 400);
-      return;
-    }
-
-    const startedAt = DATA.generatedAt || null;
-    const deadline = Date.now() + MAX_WAIT_MS;
 
     (async function poll() {
       const latest = await currentDashboardGeneratedAt();
@@ -631,6 +631,54 @@ function initRefreshButton() {
       status.textContent = "Refreshing…";
       setTimeout(poll, POLL_INTERVAL_MS);
     })();
+  }
+
+  btn.addEventListener("click", async () => {
+    if (btn.disabled) return;
+    // Disable synchronously, before any awaited check, so two rapid real
+    // clicks can't both slip through while the flag-file check is pending.
+    btn.disabled = true;
+    btn.classList.add("is-spinning");
+    status.hidden = false;
+    status.textContent = "Requesting…";
+
+    // A refresh may already be queued or running — from this tab, another
+    // tab, or a previous page load — since the flag file persists the
+    // whole time. Don't fire a redundant request; just tell the user and
+    // start watching for the one already in progress.
+    const already = await pendingRefreshSince();
+    if (already) {
+      status.textContent = "Already refreshing — please wait…";
+      watchForUpdate(already + MAX_WAIT_MS);
+      return;
+    }
+
+    // Best-effort: ask the on-demand checker task to do a real data pull
+    // within the next ~2 min. If the server doesn't support this endpoint
+    // (e.g. an older cached deploy), we just fall back to a plain reload.
+    let requested = false;
+    try {
+      const res = await fetch("/api/refresh", { method: "POST" });
+      requested = res.ok;
+    } catch {}
+
+    if (!requested) {
+      setTimeout(() => window.location.reload(), 400);
+      return;
+    }
+
+    watchForUpdate(Date.now() + MAX_WAIT_MS);
+  });
+
+  // If a refresh was already requested before this page load (e.g. the
+  // user clicked Refresh, then reloaded manually while it was still
+  // working), pick up watching for it immediately instead of leaving the
+  // button looking idle.
+  pendingRefreshSince().then((already) => {
+    if (already) {
+      status.textContent = "Refreshing — please wait…";
+      watchForUpdate(already + MAX_WAIT_MS);
+    }
   });
 }
 
