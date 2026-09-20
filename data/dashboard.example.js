@@ -81,9 +81,17 @@ window.DASHBOARD_DATA = {
     items: [
       {
         channel: "#general",
-        preview: "Reminder: the office is closed on Monday for the holiday!",
-        unreadCount: 3,
+        from: "Jordan Lee",
+        preview: "Hey @Alex, can you take a look at the deck when you get a chance?",
+        ts: "2026-01-05T08:42:00-05:00",
         permalink: "https://example.slack.com/archives/C0EXAMPLE/p1234567890000100"
+      },
+      {
+        channel: "#design",
+        from: "Sam Rivera",
+        preview: "@Alex thanks for the review earlier — pushed the updated frames.",
+        ts: "2026-01-04T16:15:00-05:00",
+        permalink: "https://example.slack.com/archives/C0EXAMPLE2/p1234567890000200"
       }
     ]
   },

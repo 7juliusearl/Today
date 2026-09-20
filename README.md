@@ -1,6 +1,6 @@
 # Today
 
-A personal "command center" dashboard: today's calendar (including a shared team calendar), unread-ish Slack activity, a verse of the day, live weather, and your own weekly work rhythm / onboarding plan if you set them up. Runs entirely locally as a static site, refreshed throughout the work day by a Claude Code scheduled task (plus an on-demand check within ~2 minutes of hitting the Refresh button).
+A personal "command center" dashboard: today's calendar (including a shared team calendar), your Slack activity feed (@mentions of you), a verse of the day, live weather, and your own weekly work rhythm / onboarding plan if you set them up. Runs entirely locally as a static site, refreshed throughout the work day by a Claude Code scheduled task (plus an on-demand check within ~2 minutes of hitting the Refresh button).
 
 Dark glass, rounded bento cards, a warm orange accent — designed to feel like a native macOS panel rather than a webpage.
 
@@ -9,7 +9,7 @@ Dark glass, rounded bento cards, a warm orange accent — designed to feel like 
 - **Today's Schedule** — merges your personal Google Calendar with a shared team calendar, click any event to expand attendees, RSVP status, description, and meeting/calendar links
 - **Coming Up** — the next few days with something on them, when today's clear
 - **Needs Your RSVP** — every calendar invite you haven't responded to yet, regardless of how far out it is
-- **Slack** — messages posted since the dashboard's last refresh (there's no true "unread" API, so this is the closest honest equivalent)
+- **Slack Activity** — @mentions of you since the dashboard's last refresh, chronologically, with sender · channel · relative time (mirrors Slack's own Activity tab; click a row to jump straight to that message in the Slack desktop app)
 - **Sticky notes** — a coworker can leave you an encouraging note by DMing you on Slack starting with 📌; it shows up as an actual rotated sticky note stuck to a corner of the page (a different spot each time, dismissible, sticks around ~2 weeks or until a newer one replaces it)
 - **Verse of the Day** — pulled from a public verse API each morning
 - **Weather** — live, via your browser's location, no API key needed
@@ -35,7 +35,7 @@ That's it — Claude walks you through connecting your calendar (and Slack, if y
 
 1. **Connect your calendar (and optionally Slack)** to Claude Code — connectors settings.
 2. **Copy `data/dashboard.example.js` to `data/dashboard.js`** so the page has something to show before your first refresh runs.
-3. **Create a scheduled task** (`refresh-dashboard-data`) that regenerates `data/dashboard.js` on whatever cadence you want during the work day (e.g. every 30 min, 8am–5pm weekdays) — the [setup-dashboard skill](.claude/skills/setup-dashboard/SKILL.md) contains the exact task design (including some non-obvious lessons learned, like Slack having no real unread API). Point Claude at that file and have it build the same task manually. The page auto-reloads itself every 10 minutes, so an already-open tab picks up each refresh without anyone clicking anything.
+3. **Create a scheduled task** (`refresh-dashboard-data`) that regenerates `data/dashboard.js` on whatever cadence you want during the work day (e.g. every 30 min, 8am–5pm weekdays) — the [setup-dashboard skill](.claude/skills/setup-dashboard/SKILL.md) contains the exact task design (including some non-obvious lessons learned, like Slack having no real unread API — the panel is modeled as an @mentions activity feed instead). Point Claude at that file and have it build the same task manually. The page auto-reloads itself every 10 minutes, so an already-open tab picks up each refresh without anyone clicking anything.
 3b. **(Optional) Create the on-demand checker** (`refresh-dashboard-on-demand`) so the Refresh button does a real live pull within ~2 min instead of just reloading a stale file — see "How refreshing works" below and the skill file for the exact task design.
 4. **Run it once**, then `./start.sh` to open `http://localhost:4173` in your regular browser (not Claude's built-in one — no logins there).
 5. **(Optional)** Copy `com.today-dashboard.plist.example` to `~/Library/LaunchAgents/com.today-dashboard.plist`, fix the path inside it, then `launchctl load -w ~/Library/LaunchAgents/com.today-dashboard.plist` to keep it running permanently.

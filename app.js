@@ -421,7 +421,23 @@ function addDismissedSlackId(id) {
 }
 
 function slackItemId(it) {
-  return it.permalink || `${it.channel}::${it.preview}`;
+  return it.permalink || `${it.channel}::${it.ts || ""}::${it.preview}`;
+}
+
+function formatSlackRelativeTime(iso) {
+  if (!iso) return "";
+  const then = new Date(iso);
+  if (Number.isNaN(then.getTime())) return "";
+  const diffMs = Date.now() - then.getTime();
+  const mins = Math.round(diffMs / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days === 1) return "yesterday";
+  if (days < 7) return `${days}d ago`;
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(then);
 }
 
 function toSlackAppLink(permalink) {
@@ -447,7 +463,7 @@ function renderSlack() {
   const slack = DATA.slack || { connected: false, items: [] };
 
   if (!slack.connected) {
-    list.innerHTML = `<p class="slack-connect-cta">Slack isn't connected yet. Once it is, unread channels and threads will show up here automatically each morning.</p>`;
+    list.innerHTML = `<p class="slack-connect-cta">Slack isn't connected yet. Once it is, mentions of you will show up here automatically each morning.</p>`;
     return;
   }
 
@@ -455,7 +471,7 @@ function renderSlack() {
   const items = (slack.items || []).filter((it) => !dismissed.has(slackItemId(it)));
 
   if (items.length === 0) {
-    list.innerHTML = `<p class="empty-state">Nothing new since your last refresh.</p>`;
+    list.innerHTML = `<p class="empty-state">No new mentions since your last refresh.</p>`;
     return;
   }
 
@@ -464,11 +480,19 @@ function renderSlack() {
     const linkAttrs = it.permalink
       ? `href="${escapeHtml(toSlackAppLink(it.permalink))}"`
       : "";
+    const from = it.from ? escapeHtml(it.from) : "";
+    const channel = it.channel ? escapeHtml(it.channel) : "";
+    const separator = from && channel ? '<span class="slack-sep">·</span>' : "";
+    const time = formatSlackRelativeTime(it.ts);
     return `
     <${tag} class="slack-item" data-slack-id="${escapeHtml(slackItemId(it))}" ${linkAttrs}>
       <div class="slack-item-head">
-        <span class="slack-channel">${escapeHtml(it.channel)}</span>
-        <span class="slack-count">${it.unreadCount ? it.unreadCount + " new" : ""}</span>
+        <span class="slack-who">
+          ${from ? `<span class="slack-from">${from}</span>` : ""}
+          ${separator}
+          ${channel ? `<span class="slack-channel">${channel}</span>` : ""}
+        </span>
+        <span class="slack-time">${escapeHtml(time)}</span>
       </div>
       <p class="slack-preview">${escapeHtml(it.preview || "")}</p>
     </${tag}>
@@ -482,7 +506,7 @@ function renderSlack() {
       setTimeout(() => {
         el.remove();
         if (!list.querySelector(".slack-item")) {
-          list.innerHTML = `<p class="empty-state">Nothing new since your last refresh.</p>`;
+          list.innerHTML = `<p class="empty-state">No new mentions since your last refresh.</p>`;
         }
       }, 300);
     });
