@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-APP_DIR="$REPO_DIR/build/Today Calendar Prototype.app"
+APP_DIR="$REPO_DIR/build/Today.app"
 mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources/dashboard/icons"
 xcrun swiftc -parse-as-library -target "$(uname -m)-apple-macosx14.0" \
   -module-cache-path "$REPO_DIR/build/swift-module-cache" \
@@ -9,10 +9,13 @@ xcrun swiftc -parse-as-library -target "$(uname -m)-apple-macosx14.0" \
   "$REPO_DIR/prototype/calendar/DashboardExtras.swift" \
   "$REPO_DIR/prototype/calendar/AppLifecycle.swift" \
   "$REPO_DIR/prototype/calendar/MailData.swift" \
+  "$REPO_DIR/prototype/calendar/IntroView.swift" \
   "$REPO_DIR/prototype/calendar/TodayCalendar.swift" \
   -o "$APP_DIR/Contents/MacOS/TodayCalendar"
 cp "$REPO_DIR/app.js" "$REPO_DIR/styles.css" "$APP_DIR/Contents/Resources/dashboard/"
+cp "$REPO_DIR/prototype/calendar/overview.css" "$APP_DIR/Contents/Resources/dashboard/"
 cp "$REPO_DIR/icons/"*.png "$APP_DIR/Contents/Resources/dashboard/icons/"
+cp "$REPO_DIR/prototype/calendar/authorize-calendar.js" "$APP_DIR/Contents/Resources/"
 cp "$REPO_DIR/prototype/calendar/open-calendar.js" "$APP_DIR/Contents/Resources/"
 cp "$REPO_DIR/prototype/calendar/mail/read-mail.js" "$APP_DIR/Contents/Resources/"
 cp "$REPO_DIR/icons/Today.icns" "$APP_DIR/Contents/Resources/"
@@ -57,7 +60,7 @@ html = html.replace('</head>',  '''<style>
 .mail-attachments { grid-column: 1 / 3; font-size: 11px; opacity: .55; }
 .mail-item:focus-visible, .mail-open-app:focus-visible { outline: 2px solid #ed4b20; outline-offset: 4px; }
 @media (max-width: 800px) { .bento-schedule, .bento-mail, .bento-comingup { grid-column: span 12; } }
-</style></head>''')
+</style><link rel="stylesheet" href="overview.css" /></head>''')
 (app / 'Contents/Resources/dashboard/index.html').write_text(html)
 PY
 cat > "$APP_DIR/Contents/Info.plist" <<'PLIST'
@@ -65,7 +68,8 @@ cat > "$APP_DIR/Contents/Info.plist" <<'PLIST'
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
 <key>CFBundleIdentifier</key><string>com.today-dashboard.calendar-prototype</string>
-<key>CFBundleName</key><string>Today Calendar Prototype</string>
+<key>CFBundleName</key><string>Today</string>
+<key>CFBundleDisplayName</key><string>Today</string>
 <key>CFBundleExecutable</key><string>TodayCalendar</string>
 <key>CFBundlePackageType</key><string>APPL</string>
 <key>CFBundleVersion</key><string>1</string>

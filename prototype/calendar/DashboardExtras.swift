@@ -29,6 +29,16 @@ import CoreLocation
         location.desiredAccuracy = kCLLocationAccuracyKilometer
     }
 
+    var locationAuthorized: Bool {
+        location.authorizationStatus == .authorizedAlways
+    }
+    var locationDenied: Bool {
+        [.denied, .restricted].contains(location.authorizationStatus)
+    }
+    func requestLocationAccess() {
+        location.requestWhenInUseAuthorization()
+    }
+
     func refresh() {
         let now = Date()
         if verseDay != Calendar.current.startOfDay(for: now), now.timeIntervalSince(lastVerseAttempt) > 300 {
@@ -51,7 +61,7 @@ import CoreLocation
         lastWeatherAttempt = now
         switch location.authorizationStatus {
         case .notDetermined:
-            location.requestWhenInUseAuthorization()
+            weather.message = "Connect location in setup for weather"
         case .authorizedAlways, .authorizedWhenInUse:
             startLocation()
         default:
@@ -75,6 +85,7 @@ import CoreLocation
     }
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        onChange?()
         switch manager.authorizationStatus {
         case .authorizedAlways, .authorizedWhenInUse:
             lastWeatherAttempt = .distantPast

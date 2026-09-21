@@ -10,7 +10,7 @@ On a development Mac with Xcode / Swift and Python 3 installed:
 
 ```sh
 ./scripts/build-calendar-prototype.sh
-open "build/Today Calendar Prototype.app"
+open "build/Today.app"
 ```
 
 1. Confirm your work events appear in Apple Calendar first. Enable Google calendar
@@ -191,3 +191,29 @@ Maybe, or Decline controls; the dashboard updates after Calendar syncs the respo
 This replaces the unreliable email-subject search; no Mail connection is needed
 for invitations. Live event reveal depends on the identifiers exposed by the
 calendar account and needs an interactive check.
+
+### Version 2 compact overview
+
+The `codex/main` branch bundles `overview.css` after the
+shared dashboard styles. At window sizes of at least 1000 × 650 CSS pixels,
+all dashboard sections fit within the window: greeting and current event at the
+top; today's calendar, Mail, and upcoming days in the middle; work rhythm,
+invitations, onboarding, and verse below; quick links along the bottom.
+Long lists scroll inside their cards, with their position preserved on refresh.
+Smaller windows retain the regular page layout for readability. Personal data
+and native permissions use the same app settings as version 1.
+
+### First-run setup
+
+A branded native introduction stays visible until the user finishes setup and
+chooses **Open my dashboard**. Calendar access and a valid calendar selection
+are required. Location, Mail, and Calendar automation are explicit sequential
+steps with completion indicators; optional steps can be deliberately skipped.
+Weather refresh no longer requests location implicitly. Mail does not refresh
+from the calendar model during setup; its connection step performs its own read
+and only reports connected after a successful mailbox read. Calendar automation
+uses a read-only calendar-list request, never an invitation response.
+Denied permissions have Settings/retry options. Completion and skip choices
+persist in user defaults. Existing installations see this introduction once.
+Native macOS permission dialogs must still be tested interactively on a fresh
+installation; rebuilding does not reset previously granted system permissions.

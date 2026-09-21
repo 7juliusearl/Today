@@ -22,6 +22,12 @@ import ServiceManagement
     @Published var revision = 0
     @Published var connected = false
     @Published var requesting = false
+    @Published var setupCompleted = UserDefaults.standard.bool(forKey: "introCompleted")
+    func finishSetup() {
+        setupCompleted = true
+        UserDefaults.standard.set(true, forKey: "introCompleted")
+        refresh()
+    }
 
     init() {
         automaticRefresh = AutoRefreshController { [weak self] in
@@ -33,6 +39,7 @@ import ServiceManagement
             self.refresh()
         }
         extras.onChange = { [weak self] in
+            self?.objectWillChange.send()
             guard let self, self.connected else { return }
             self.refresh()
         }
@@ -69,7 +76,7 @@ import ServiceManagement
             Task { @MainActor in
                 self.requesting = false
                 if granted { self.loadCalendars(); self.refresh() }
-                else { self.message = error?.localizedDescription ?? "Calendar access was not granted. Enable Today Calendar Prototype in System Settings → Privacy & Security → Calendars, then connect again." }
+                else { self.message = error?.localizedDescription ?? "Calendar access was not granted. Enable Today in System Settings → Privacy & Security → Calendars, then connect again." }
             }
         }
     }
@@ -95,7 +102,7 @@ import ServiceManagement
         UserDefaults.standard.set(name, forKey: "firstName")
         UserDefaults.standard.set(primary, forKey: "primaryCalendar")
         extras.refresh()
-        mail.refresh()
+        if setupCompleted { mail.refresh() }
         let now = Date()
         let start = Calendar.current.startOfDay(for: now)
         let end = Calendar.current.date(byAdding: .day, value: 91, to: start)!
@@ -297,21 +304,10 @@ struct PrototypeView: View {
     let timer = Timer.publish(every: 300, on: .main, in: .common).autoconnect()
     var body: some View {
         Group {
-            if !model.script.isEmpty {
+            if model.setupCompleted && !model.script.isEmpty {
                 DashboardWebView(model: model)
             } else {
-                VStack(spacing: 20) {
-                    Image(systemName: "calendar").font(.system(size: 48)).foregroundStyle(.orange)
-                    Text("Your day, in one place.").font(.largeTitle.weight(.semibold))
-                    Text(model.message).multilineTextAlignment(.center).foregroundStyle(.secondary).frame(maxWidth: 440)
-                    if model.connected {
-                        Button("Choose calendars") { settingsPresented = true }.buttonStyle(.borderedProminent)
-                    } else {
-                        Button(model.requesting ? "Connecting…" : "Connect calendars") { model.connect() }
-                            .buttonStyle(.borderedProminent).disabled(model.requesting)
-                    }
-                    Text("Calendar data stays on this Mac.").font(.caption).foregroundStyle(.secondary)
-                }.frame(maxWidth: .infinity, maxHeight: .infinity)
+                IntroView(model: model, mail: model.mail)
             }
         }
         .frame(minWidth: 900, minHeight: 700)
@@ -320,19 +316,16 @@ struct PrototypeView: View {
             ToolbarItem {
                 Button { model.loadCalendars(); settingsPresented = true } label: {
                     Label("Settings", systemImage: "gearshape")
-                }.disabled(!model.connected).help("Choose calendars and edit your name")
+                }.disabled(!model.connected || !model.setupCompleted).help("Choose calendars and edit your name")
             }
         }
         .sheet(isPresented: $settingsPresented) { CalendarSettingsView(model: model, login: model.login) }
         .onAppear {
             if EKEventStore.authorizationStatus(for: .event) == .fullAccess { model.refresh() }
         }
-        .onChange(of: model.connected) { _, connected in
-            if connected && model.script.isEmpty { settingsPresented = true }
-        }
-        .onReceive(timer) { _ in if model.connected && !settingsPresented { model.refresh() } }
+        .onReceive(timer) { _ in if EKEventStore.authorizationStatus(for: .event) == .fullAccess && !settingsPresented { model.refresh() } }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-            if model.connected && !settingsPresented { model.refresh() }
+            if EKEventStore.authorizationStatus(for: .event) == .fullAccess && !settingsPresented { model.refresh() }
         }
     }
 }

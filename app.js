@@ -974,6 +974,7 @@ window.refreshLocalDashboard = function () {
   if (!window.LOCAL_CALENDAR_PROTOTYPE) return;
   const x = window.scrollX;
   const y = window.scrollY;
+  const panelScroll = Array.from(document.querySelectorAll(".panel-body, .bento-workschedule, .bento-plan, .happening-now, .hero"), el => [el, el.scrollTop]);
   const detailKey = el => el.dataset.eventKey || el.id || el.querySelector("summary")?.textContent;
   const expanded = new Set(Array.from(document.querySelectorAll("details[open]"), detailKey));
   DATA = window.DASHBOARD_DATA;
@@ -988,6 +989,7 @@ window.refreshLocalDashboard = function () {
   renderVerse();
   initWeather();
   document.querySelectorAll("details").forEach(el => { el.open = expanded.has(detailKey(el)); });
+  panelScroll.forEach(([el, top]) => { el.scrollTop = top; });
   window.scrollTo({ left: x, top: y, behavior: "instant" });
 };
 

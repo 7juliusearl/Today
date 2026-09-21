@@ -1,0 +1,91 @@
+/* Version 2: keep the desktop overview within the window. */
+@media (min-width: 1000px) and (min-height: 650px) {
+  body { height: 100vh; overflow: hidden; }
+  .page {
+    width: 100%; max-width: none; height: 100vh; margin: 0;
+    padding: 52px 20px 16px;
+    display: grid; grid-template-columns: repeat(12, minmax(0, 1fr));
+    grid-template-rows: 190px minmax(0, 1fr) 190px 48px; gap: 12px;
+  }
+  .top-controls { top: 10px; right: 20px; gap: 8px; }
+  .top-controls .icon-btn { width: 30px; height: 30px; }
+  .theme-toggle { padding: 4px 10px 4px 5px; }
+  .page .glass-card { border-radius: 18px; min-width: 0; min-height: 0; margin: 0; padding: 16px; }
+  .page .bento { display: contents; }
+  .page .hero { grid-column: 1 / 9; grid-row: 1; overflow: auto; }
+  .hero-body { gap: 20px; }
+  .greeting { font-size: clamp(26px, 3vw, 42px); letter-spacing: -1.5px; margin-bottom: 12px; }
+  .greeting br { display: none; }
+  .hero-top { margin-bottom: 8px; }
+  .hero-meta { gap: 18px; }
+  .clock { font-size: 21px; }
+  .weather-temp { font-size: 16px; }
+  .hero-rhythm { max-width: 30%; padding-left: 18px; }
+  .hero-rhythm-list { gap: 4px; }
+  .hero-rhythm-title { font-size: 12px; }
+  .page .happening-now { grid-column: 9 / 13; grid-row: 1; overflow: auto; }
+  .happening-now .panel-head { padding-right: 100px; margin-bottom: 10px; }
+  .now-event-top { gap: 8px; }
+  .now-countdown { flex-basis: 90px; gap: 3px; }
+  .now-event:first-child .now-countdown { margin-top: -50px; }
+  .now-countdown-number { font-size: 64px; }
+  .now-countdown-label, .now-countdown-unit { font-size: 9px; letter-spacing: 1px; }
+  .now-event h3 { font-size: 15px; margin-bottom: 4px; }
+  .now-live { margin-bottom: 4px; font-size: 10px; }
+  .now-meta, .now-next { font-size: 11px; }
+  .now-progress { margin-top: 10px; }
+  .now-actions { margin-top: 8px; }
+  .now-join { padding: 5px 9px; }
+  .page .bento-schedule { grid-column: 1 / 5; grid-row: 2; }
+  .page .bento-mail { grid-column: 5 / 9; grid-row: 2; }
+  .page .bento-comingup { grid-column: 9 / 13; grid-row: 2; }
+  .page .bento-workschedule { grid-column: 1 / 4; grid-row: 3; }
+  .page .bento-invites { grid-column: 4 / 7; grid-row: 3; }
+  .page .bento-plan { grid-column: 7 / 10; grid-row: 3; }
+  .page:has(#pending-invites[hidden]) .bento-plan { grid-column: 4 / 10; }
+  .page .bento-verse { grid-column: 10 / 13; grid-row: 3; }
+  .page .bento > .glass-card { display: flex; flex-direction: column; }
+  .page [hidden] { display: none !important; }
+  .page .panel-head { flex-shrink: 0; margin-bottom: 12px; }
+  .page .eyebrow { font-size: 9px; letter-spacing: 1.5px; margin-bottom: 6px; }
+  .page .panel-title { font-size: 18px; }
+  .page .panel-body, .page #mail-list {
+    min-height: 0; overflow: auto; overscroll-behavior: contain;
+    scrollbar-gutter: stable; gap: 10px; padding-right: 6px;
+  }
+  .panel-body > * { flex-shrink: 0; }
+  .page .bento-workschedule, .page .bento-plan { overflow: auto; }
+  .bento-workschedule .panel-body { flex: 0 0 auto; overflow: visible; }
+  .page .event-summary { grid-template-columns: 66px minmax(0, 1fr) 12px; gap: 8px; padding: 10px 0; }
+  .page .event-title { font-size: 14px; }
+  .page .event-time { font-size: 10px; }
+  .page .event-location { font-size: 11px; }
+  .page .event-details { padding-left: 0; }
+  .page .upcoming-day-group { padding: 12px; border-radius: 12px; }
+  .page .upcoming-day-group + .upcoming-day-group { margin-top: 0; }
+  .page .upcoming-day-date { font-size: 10px; }
+  .page .mail-item { padding: 10px 0; }
+  .page .mail-sender { font-size: 15px; }
+  .page .mail-subject { font-size: 11px; }
+  .page .mail-status { margin-bottom: 6px; }
+  .page .mail-item-unread::before, .page .mail-item-unread::after { inset-inline: 0; }
+  .page .invite-mail-row h3 { font-size: 13px; }
+  .page .invite-mail-meta { font-size: 11px; }
+  .page .invite-mail-row + .invite-mail-row { padding-top: 10px; }
+  .page .verse-body { justify-content: flex-start; gap: 4px; }
+  .page .verse-mark { display: none; }
+  .page .verse-text { font-size: 13px; line-height: 1.5; margin: 0; }
+  .page .verse-version { margin: 4px 0 0; font-size: 9px; }
+  .page .plan-phase-labels { gap: 8px; }
+  .page .plan-phase-label { min-width: 0; font-size: 10px; overflow-wrap: anywhere; }
+  .page .quicklinks { grid-column: 1 / -1; grid-row: 4; display: flex; align-items: center; gap: 16px; padding: 6px 12px; }
+  .quicklinks .panel-head { margin: 0; }
+  .quicklinks .panel-head .eyebrow { margin: 0; white-space: nowrap; }
+  .quicklinks .panel-title { display: none; }
+  .page .quicklinks-grid { flex: 1; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 6px; }
+  .quicklink { padding: 5px 7px; gap: 7px; border-radius: 8px; }
+  .quicklink-icon { width: 22px; height: 22px; border-radius: 5px; }
+  .quicklink-icon img { width: 16px; height: 16px; }
+  .quicklink-label { font-size: 11px; }
+  .page .footer { display: none; }
+}
