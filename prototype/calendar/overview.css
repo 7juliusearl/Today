@@ -90,10 +90,13 @@
   .page .footer { display: none; }
 }
 
+
+
+@media (min-width: 861px) and (max-width: 999px), (min-width: 861px) and (max-height: 649px) {
+  .page .bento-schedule, .page .bento-verse { grid-column: span 6; }
+}
 @media (min-width: 1000px) and (min-height: 650px) {
-  .page:has(.bento-asana:not([hidden])) .bento-schedule { grid-column: 1 / 4; }
-  .page .bento-asana { grid-column: 4 / 7; grid-row: 2; }
-  .page:has(.bento-asana:not([hidden])) .bento-mail { grid-column: 7 / 10; }
-  .page:has(.bento-asana:not([hidden])) .bento-comingup { grid-column: 10 / 13; }
-  .page .bento-asana .panel-head { margin-bottom: 8px; }
+  .page .bento-verse { align-self: stretch; }
+  .page .verse-body { flex: 1; }
+  .page .verse-text { font-size: clamp(16px, 1.25vw, 21px); line-height: 1.4; }
 }

@@ -310,7 +310,7 @@ struct CalendarSettingsView: View {
                     Button("Reload calendars") { model.loadCalendars() }
                     Link("Setup guide ↗", destination: URL(string: "https://asana.com/apps/calendar")!)
                 }
-                Text("Shows due dates through the next 14 days. Subscription updates may be delayed. Complete tasks in Asana; tasks without due dates aren’t included.")
+                Text("Tasks due today appear in Today’s calendar. Subscription updates may be delayed. Complete tasks in Asana; tasks without due dates aren’t included.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Divider()

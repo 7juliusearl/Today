@@ -599,52 +599,6 @@ function asanaDesktopLink(value) {
   return null;
 }
 
-function renderAsana() {
-  const card = document.getElementById("asana-card");
-  if (!card) return;
-  const data = DATA.asana;
-  card.hidden = !data;
-  if (!data) return;
-  const list = document.getElementById("asana-tasks");
-  list.replaceChildren();
-  const note = document.createElement("p");
-  note.className = "mail-status";
-  note.textContent = data.connected ? `${data.calendarName} · Calendar subscription · Updates may be delayed` : "Bring your Asana due dates into Today through Apple Calendar.";
-  list.append(note);
-  if (!data.connected) {
-    const button = document.createElement("button");
-    button.className = "asana-connect";
-    button.textContent = "Connect Asana calendar";
-    button.onclick = () => window.webkit.messageHandlers.openSettings.postMessage("open");
-    list.append(button);
-    return;
-  }
-  const now = new Date();
-  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-  let lastDay;
-  for (const task of data.tasks || []) {
-    if (lastDay !== task.dueDate) {
-      const heading = document.createElement("p");
-      heading.className = "upcoming-day-date";
-      heading.textContent = task.dueDate === today ? "Due today" : formatDayHeading(task.dueDate);
-      list.append(heading);
-      lastDay = task.dueDate;
-    }
-    const url = asanaDesktopLink(task.url);
-    const row = document.createElement(url ? "a" : "p");
-    row.className = "asana-task";
-    row.textContent = task.title + (url ? " ↗" : "");
-    if (url) { row.href = url; row.target = "_blank"; row.rel = "noopener"; }
-    list.append(row);
-  }
-  if (!(data.tasks || []).length) {
-    const empty = document.createElement("p");
-    empty.className = "empty-state";
-    empty.textContent = "No task deadlines in this calendar today or in the next 14 days.";
-    list.append(empty);
-  }
-}
-
 function renderMail() {
   const list = document.getElementById("mail-list");
   if (!list) return;
@@ -1105,7 +1059,6 @@ window.refreshLocalDashboard = function () {
   renderHeroRhythm();
   renderOnboardingPlan();
   renderMail();
-  renderAsana();
   renderVerse();
   initWeather();
   document.querySelectorAll("details").forEach(el => { el.open = expanded.has(detailKey(el)); });
@@ -1125,7 +1078,6 @@ renderHeroRhythm();
 renderOnboardingPlan();
 renderSlack();
 renderMail();
-renderAsana();
 renderVerse();
 renderStickyNotes();
 initWeather();

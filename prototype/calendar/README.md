@@ -300,8 +300,8 @@ Settings → Asana tasks lets each user select a subscribed Asana calendar,
 independently of the meeting calendar selection. In Asana, use My Tasks → Sync
 to Calendar, then Apple Calendar → File → New Calendar Subscription. Reload the
 calendar list in Today and save the selected subscription. No API token is used.
-The Asana card includes due dates from today through the next 14 days and links
-to tasks when a valid Asana HTTPS URL is present in the event URL or notes.
+Today’s calendar includes Asana tasks due today, with links to the Asana desktop
+launcher when a valid task URL is present. There is no separate Asana card.
 Selected Asana events are excluded from the meeting lists. Calendar subscriptions
 are one-way and may update slowly; no live completion status, undated tasks, or
 write-back is claimed. Each coworker connects their own subscription locally.

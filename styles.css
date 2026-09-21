@@ -1382,9 +1382,12 @@ a.slack-item:hover {
 .mail-thread details > .mail-item { padding-left: 12px; border-left: 2px solid var(--line); }
 .mail-thread-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
-.bento-asana { grid-column: span 7; padding: 24px; display: flex; flex-direction: column; min-height: 180px; }
-.bento-asana[hidden] { display: none; }
 .asana-task { display: block; margin: 0; padding: 8px 0; border-bottom: 1px solid var(--line); color: var(--ink); text-decoration: none; font-size: 13px; line-height: 1.4; overflow-wrap: anywhere; }
 a.asana-task:hover { color: var(--accent); }
-.asana-connect { align-self: flex-start; border: 1px solid var(--line); background: var(--accent-soft); color: var(--accent); border-radius: 10px; padding: 9px 12px; font: inherit; cursor: pointer; }
-@media (max-width: 860px) { .bento-asana { grid-column: span 12; } }
+
+/* Keep a short verse beside long lists readable without stretching its body. */
+.glass-card.bento-verse { align-self: start; min-height: 0; }
+.bento-verse .verse-body { flex: 0 0 auto; justify-content: flex-start; gap: 8px; }
+.bento-verse .verse-mark { font-size: 48px; height: 30px; margin: 0; }
+.bento-verse .verse-text { font-size: clamp(22px, 2.4vw, 30px); line-height: 1.45; font-weight: 500; letter-spacing: -.4px; margin: 0; }
+.bento-verse .verse-version { margin: 10px 0 0; }
