@@ -1375,3 +1375,16 @@ a.slack-item:hover {
 .invite-mail-match { display: block; border: 1px solid var(--line); background: var(--glass-bg); color: var(--ink); font: inherit; font-size: 12px; line-height: 1.5; width: 100%; text-align: left; padding: 10px 12px; margin-top: 6px; border-radius: 8px; cursor: pointer; overflow-wrap: anywhere; }
 .invite-mail-action:disabled, .invite-mail-match:disabled { opacity: .5; cursor: default; }
 .invite-mail-action:focus-visible, .invite-mail-match:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+.mail-thread { border-bottom: 1px solid var(--line); padding-bottom: 10px; }
+.mail-thread > .mail-item { border-bottom: 0; }
+.mail-thread-toggle { color: var(--accent); font-family: var(--sans); font-size: 11px; cursor: pointer; padding: 4px 0; }
+.mail-thread details > .mail-item { padding-left: 12px; border-left: 2px solid var(--line); }
+.mail-thread-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+.bento-asana { grid-column: span 7; padding: 24px; display: flex; flex-direction: column; min-height: 180px; }
+.bento-asana[hidden] { display: none; }
+.asana-task { display: block; margin: 0; padding: 8px 0; border-bottom: 1px solid var(--line); color: var(--ink); text-decoration: none; font-size: 13px; line-height: 1.4; overflow-wrap: anywhere; }
+a.asana-task:hover { color: var(--accent); }
+.asana-connect { align-self: flex-start; border: 1px solid var(--line); background: var(--accent-soft); color: var(--accent); border-radius: 10px; padding: 9px 12px; font: inherit; cursor: pointer; }
+@media (max-width: 860px) { .bento-asana { grid-column: span 12; } }

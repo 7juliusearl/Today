@@ -39,6 +39,16 @@ import CoreLocation
         location.requestWhenInUseAuthorization()
     }
 
+    var weatherBusy: Bool { locating || fetchingWeather }
+
+    func retryWeather() {
+        guard locationAuthorized, !weatherBusy else { return }
+        lastWeatherAttempt = .distantPast
+        weather.message = "Fetching weather…"
+        refresh()
+        onChange?()
+    }
+
     func refresh() {
         let now = Date()
         if verseDay != Calendar.current.startOfDay(for: now), now.timeIntervalSince(lastVerseAttempt) > 300 {
@@ -61,7 +71,7 @@ import CoreLocation
         lastWeatherAttempt = now
         switch location.authorizationStatus {
         case .notDetermined:
-            weather.message = "Connect location in setup for weather"
+            weather.message = "Enable location in Settings for weather"
         case .authorizedAlways, .authorizedWhenInUse:
             startLocation()
         default:

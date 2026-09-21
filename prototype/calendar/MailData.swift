@@ -16,6 +16,7 @@ struct MailItem: Codable {
     let attachmentCount: Int
     let receivedAt: String
     let isRead: Bool?
+    let threadReferences: [String]?
 }
 struct MailSnapshot: Codable {
     var items: [MailItem] = []

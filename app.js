@@ -246,7 +246,10 @@ function renderSchedule() {
   const list = document.getElementById("schedule-list");
   const events = (DATA.calendar && DATA.calendar.events) || [];
 
-  if (events.length === 0) {
+  const date = new Date();
+  const today = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  const tasks = (DATA.asana?.tasks || []).filter(task => task.dueDate === today);
+  if (events.length === 0 && tasks.length === 0) {
     list.innerHTML = `<p class="empty-state">Nothing on your calendar today. Enjoy the open space.</p>`;
     return;
   }
@@ -258,6 +261,20 @@ function renderSchedule() {
     const isNow = !ev.allDay && start <= now && (!end || end >= now);
     return renderEventItem(ev, isNow);
   }).join("");
+  if (tasks.length) {
+    const heading = document.createElement("p");
+    heading.className = "upcoming-day-date";
+    heading.textContent = "Asana · Due today";
+    list.append(heading);
+    for (const task of tasks) {
+      const url = asanaDesktopLink(task.url);
+      const row = document.createElement(url ? "a" : "p");
+      row.className = "asana-task";
+      row.textContent = task.title + (url ? " ↗" : "");
+      if (url) { row.href = url; row.target = "_blank"; row.rel = "noopener"; }
+      list.append(row);
+    }
+  }
 }
 
 function formatDayHeading(dateStr) {
@@ -382,6 +399,8 @@ function renderWorkSchedule() {
 
   if (!schedule) {
     list.innerHTML = `<p class="empty-state">No work schedule set up yet.</p>`;
+    fullBody.innerHTML = "";
+    document.getElementById("workschedule-eyebrow").textContent = "Work Schedule";
     return;
   }
 
@@ -452,6 +471,7 @@ function renderOnboardingPlan() {
     if (card) card.hidden = true;
     return;
   }
+  if (card) card.hidden = false;
 
   const start = new Date(`${plan.startDate}T00:00:00`);
   const now = new Date();
@@ -543,10 +563,93 @@ function toSlackAppLink(permalink) {
   }
 }
 
+// Join only explicit Message-ID reply chains, including shared ancestors not in today's inbox.
+function groupMailThreads(items) {
+  const parents = items.map((_, i) => i);
+  const find = i => { while (parents[i] !== i) { parents[i] = parents[parents[i]]; i = parents[i]; } return i; };
+  const owners = new Map();
+  const normalize = id => String(id || "").trim().replace(/^<|>$/g, "");
+  items.forEach((item, i) => {
+    const ids = [item.messageID, ...(item.threadReferences || [])].map(normalize).filter(Boolean);
+    ids.forEach(id => {
+      if (owners.has(id)) parents[find(i)] = find(owners.get(id));
+      else owners.set(id, i);
+    });
+  });
+  const groups = new Map();
+  items.forEach((item, i) => {
+    const root = find(i);
+    if (!groups.has(root)) groups.set(root, []);
+    const group = groups.get(root);
+    if (!group.some(existing => item.messageID ? normalize(existing.messageID) === normalize(item.messageID) : existing.id === item.id)) group.push(item);
+  });
+  return [...groups.values()].map(group => group.sort((a, b) => Date.parse(b.receivedAt) - Date.parse(a.receivedAt)))
+    .sort((a, b) => Date.parse(b[0].receivedAt) - Date.parse(a[0].receivedAt));
+}
+
+function asanaDesktopLink(value) {
+  try {
+    const candidate = new URL(value);
+    if (candidate.protocol === "https:" && ["app.asana.com", "asana.com"].includes(candidate.hostname)) {
+      return candidate.pathname === "/-/desktop_app_link"
+        ? candidate.href
+        : `https://app.asana.com/-/desktop_app_link?path=${encodeURIComponent(candidate.pathname + candidate.search + candidate.hash)}`;
+    }
+  } catch {}
+  return null;
+}
+
+function renderAsana() {
+  const card = document.getElementById("asana-card");
+  if (!card) return;
+  const data = DATA.asana;
+  card.hidden = !data;
+  if (!data) return;
+  const list = document.getElementById("asana-tasks");
+  list.replaceChildren();
+  const note = document.createElement("p");
+  note.className = "mail-status";
+  note.textContent = data.connected ? `${data.calendarName} · Calendar subscription · Updates may be delayed` : "Bring your Asana due dates into Today through Apple Calendar.";
+  list.append(note);
+  if (!data.connected) {
+    const button = document.createElement("button");
+    button.className = "asana-connect";
+    button.textContent = "Connect Asana calendar";
+    button.onclick = () => window.webkit.messageHandlers.openSettings.postMessage("open");
+    list.append(button);
+    return;
+  }
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  let lastDay;
+  for (const task of data.tasks || []) {
+    if (lastDay !== task.dueDate) {
+      const heading = document.createElement("p");
+      heading.className = "upcoming-day-date";
+      heading.textContent = task.dueDate === today ? "Due today" : formatDayHeading(task.dueDate);
+      list.append(heading);
+      lastDay = task.dueDate;
+    }
+    const url = asanaDesktopLink(task.url);
+    const row = document.createElement(url ? "a" : "p");
+    row.className = "asana-task";
+    row.textContent = task.title + (url ? " ↗" : "");
+    if (url) { row.href = url; row.target = "_blank"; row.rel = "noopener"; }
+    list.append(row);
+  }
+  if (!(data.tasks || []).length) {
+    const empty = document.createElement("p");
+    empty.className = "empty-state";
+    empty.textContent = "No task deadlines in this calendar today or in the next 14 days.";
+    list.append(empty);
+  }
+}
+
 function renderMail() {
   const list = document.getElementById("mail-list");
   if (!list) return;
   const mail = DATA.mail || {};
+  const threads = groupMailThreads(mail.items || []);
   document.getElementById("mail-title").textContent = "Today’s emails";
   list.replaceChildren();
   const openMail = document.getElementById("mail-open-app");
@@ -554,10 +657,10 @@ function renderMail() {
   const note = document.createElement("p");
   note.className = "mail-status";
   note.textContent = mail.status || (mail.updatedAt
-    ? `${mail.label} · ${(mail.items || []).length} today · Updated ${new Date(mail.updatedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
+    ? `${mail.label} · ${threads.length} conversation${threads.length === 1 ? "" : "s"} · ${(mail.items || []).length} messages today · Updated ${new Date(mail.updatedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
     : "Connect Apple Mail in Settings.");
   list.append(note);
-  for (const item of mail.items || []) {
+  function mailRow(item, isRead = item.isRead) {
     const row = document.createElement("button");
     row.className = "mail-item";
     row.type = "button";
@@ -567,11 +670,11 @@ function renderMail() {
     const sender = document.createElement("span");
     sender.className = "mail-sender";
     sender.textContent = item.sender.replace(/\s*<[^>]+>\s*$/, "").replace(/^"|"$/g, "").trim() || item.sender;
-    if (typeof item.isRead === "boolean") {
-      row.classList.add(item.isRead ? "mail-item-read" : "mail-item-unread");
+    if (typeof isRead === "boolean") {
+      row.classList.add(isRead ? "mail-item-read" : "mail-item-unread");
       const readStatus = document.createElement("span");
       readStatus.className = "mail-read-status";
-      readStatus.textContent = item.isRead ? "Read" : "Unread";
+      readStatus.textContent = isRead ? "Read" : "Unread";
       sender.append(readStatus);
     }
     const time = document.createElement("span");
@@ -587,7 +690,23 @@ function renderMail() {
       count.textContent = `📎 ${item.attachmentCount} attachment${item.attachmentCount === 1 ? "" : "s"}`;
       row.append(count);
     }
-    list.append(row);
+    return row;
+  }
+  for (const thread of threads) {
+    if (thread.length === 1) { list.append(mailRow(thread[0])); continue; }
+    const group = document.createElement("div");
+    group.className = "mail-thread";
+    const isRead = thread.some(item => item.isRead === false) ? false : thread.every(item => item.isRead === true) ? true : undefined;
+    group.append(mailRow(thread[0], isRead));
+    const details = document.createElement("details");
+    details.dataset.eventKey = "mail-thread:" + thread.map(item => item.messageID || item.id).sort().join("|");
+    const summary = document.createElement("summary");
+    summary.className = "mail-thread-toggle";
+    summary.textContent = `${thread.length} messages today · Show earlier messages`;
+    details.append(summary);
+    thread.slice(1).forEach(item => details.append(mailRow(item)));
+    group.append(details);
+    list.append(group);
   }
   if (mail.updatedAt && !mail.status && !(mail.items || []).length) {
     const empty = document.createElement("p");
@@ -986,6 +1105,7 @@ window.refreshLocalDashboard = function () {
   renderHeroRhythm();
   renderOnboardingPlan();
   renderMail();
+  renderAsana();
   renderVerse();
   initWeather();
   document.querySelectorAll("details").forEach(el => { el.open = expanded.has(detailKey(el)); });
@@ -1005,6 +1125,7 @@ renderHeroRhythm();
 renderOnboardingPlan();
 renderSlack();
 renderMail();
+renderAsana();
 renderVerse();
 renderStickyNotes();
 initWeather();

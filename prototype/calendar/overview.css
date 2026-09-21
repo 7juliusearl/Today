@@ -89,3 +89,11 @@
   .quicklink-label { font-size: 11px; }
   .page .footer { display: none; }
 }
+
+@media (min-width: 1000px) and (min-height: 650px) {
+  .page:has(.bento-asana:not([hidden])) .bento-schedule { grid-column: 1 / 4; }
+  .page .bento-asana { grid-column: 4 / 7; grid-row: 2; }
+  .page:has(.bento-asana:not([hidden])) .bento-mail { grid-column: 7 / 10; }
+  .page:has(.bento-asana:not([hidden])) .bento-comingup { grid-column: 10 / 13; }
+  .page .bento-asana .panel-head { margin-bottom: 8px; }
+}

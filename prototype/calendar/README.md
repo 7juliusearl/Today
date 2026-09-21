@@ -34,6 +34,55 @@ refreshes immediately and again after 15 seconds to allow syncing to resume.
 It opens directly to your saved dashboard when Calendar access is already granted.
 It does not fetch data while quit or while the Mac is asleep.
 
+Use the **Always on top** pin toggle beside Settings in the dashboard toolbar to
+keep Today above ordinary windows on every macOS desktop as you switch Spaces. Toggle it off to restore
+normal window behavior. This preference defaults to off and is remembered after
+restarting the app. This applies to regular desktops; full-screen apps keep their own Spaces.
+
+Today remembers its window size and position using macOS window-frame saving.
+The 1200 × 850 starting size is only a default for a new window. You can resize
+down to 480 × 360 for narrow or short layouts; dashboard refreshes and pin changes
+do not restore or reset the saved frame.
+
+The toolbar's **Reserve dashboard space** menu offers an optional way to keep
+enlarged windows from covering Today. Enable the option, then choose **Allow
+window control…** and grant Today access in macOS Settings. Enabling the option
+also turns on Always on top; turning off the pin pauses window adjustments.
+Place Today along any screen edge. When the frontmost app's standard window fills
+that same screen's usable area, Today fits it into the largest remaining rectangle,
+leaving an 8-point gap. Wide dashboard layouts can leave room below; tall layouts
+can leave room beside them. The option defaults to off and is remembered.
+
+This is an adjustment after enlargement, not a system-wide reserved work area.
+It waits for a stable window frame and mouse release, so a brief enlargement may
+be visible. Manually sized windows, other monitors, dialogs, and true full-screen
+windows are left alone. Title-bar double-click must enlarge the window to fill
+the usable screen; an app-specific Zoom that only partially expands it is not
+adjusted. Apps may impose minimum sizes or refuse Accessibility resizing.
+Disabling the option stops further adjustments without changing current layouts.
+
+If Today's macOS permission switch turns itself off, quit Today, remove its stale
+entry from Accessibility (called Device Control and Data Access on some systems),
+and add the current `build/Today.app` using the plus button. Enable it and reopen
+Today. The toolbar shows a warning when window-control permission is missing and
+can reveal the exact running app in Finder. Managed-device policy may also prevent
+approval; a switch still reverting after re-adding needs administrator investigation.
+
+The build refuses to overwrite a running Today process. By default builds are
+ad-hoc signed, so their code identity changes with native updates and permissions
+can need re-approval. Set `TODAY_SIGNING_IDENTITY` to an installed, stable code-signing
+certificate for both build and packaging to retain a consistent signing identity.
+This does not grant permissions automatically or repair an existing stale entry.
+
+Window layout calculations can be checked without Accessibility permission:
+
+```sh
+xcrun swiftc -parse-as-library -module-cache-path build/swift-module-cache \
+  prototype/calendar/WindowSpace.swift prototype/calendar/WindowSpaceTests.swift \
+  -o build/window-space-tests
+build/window-space-tests
+```
+
 Enable **Launch at login** in Settings to have macOS open the app at sign-in.
 This switch applies immediately, independently of Save/Cancel for calendar
 selections. It defaults to the actual macOS login-item state (off until enabled).
@@ -217,3 +266,42 @@ Denied permissions have Settings/retry options. Completion and skip choices
 persist in user defaults. Existing installations see this introduction once.
 Native macOS permission dialogs must still be tested interactively on a fresh
 installation; rebuilding does not reset previously granted system permissions.
+
+### Portable coworker folder
+
+Run `./scripts/package-today.sh` to build an Apple silicon + Intel archive in a
+new `build/Today-Share-*/` directory. Sharing uses an allowlist of UI assets,
+blank personal files, generic examples, and AI customization instructions. It
+never copies the developer's personal data directory, preferences, or repository.
+The portable app uses its own bundle identity (`com.today-dashboard.portable`).
+No paid Apple account is involved; the ad-hoc signature is not notarization, so
+Gatekeeper or managed-device policies may still require approval or block launch.
+
+Keep the whole Today folder together. The portable app finds `dashboard/` and
+`data/` beside itself. If macOS translocates the downloaded app, a folder picker
+locates the original project. Settings can reveal the folder for editing in Codex
+or Claude Code. UI edits require an app restart; personal data scripts load on
+refresh. Native changes still require rebuilding from this source repository.
+Existing development builds keep their original personal-data path and identity.
+
+### Email conversations
+
+Today's messages are grouped using Message-ID, References, and In-Reply-To
+headers. Shared ancestors may be outside today's fetched messages. No sender or
+subject heuristic is used; missing/unavailable headers leave messages separate.
+Only reply-chain IDs are retained from the raw headers; message bodies are never
+read. Each group opens its latest message directly and offers a separate control
+to show earlier messages received today. A group is unread if any member is
+unread. Mail's proprietary conversation/category UI may group differently.
+
+### Asana calendar deadlines
+
+Settings → Asana tasks lets each user select a subscribed Asana calendar,
+independently of the meeting calendar selection. In Asana, use My Tasks → Sync
+to Calendar, then Apple Calendar → File → New Calendar Subscription. Reload the
+calendar list in Today and save the selected subscription. No API token is used.
+The Asana card includes due dates from today through the next 14 days and links
+to tasks when a valid Asana HTTPS URL is present in the event URL or notes.
+Selected Asana events are excluded from the meeting lists. Calendar subscriptions
+are one-way and may update slowly; no live completion status, undated tasks, or
+write-back is claimed. Each coworker connects their own subscription locally.

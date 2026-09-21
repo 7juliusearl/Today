@@ -17,6 +17,7 @@ import ServiceManagement
     @Published var selected: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "selectedCalendars") ?? [])
     @Published var name: String = UserDefaults.standard.string(forKey: "firstName") ?? ""
     @Published var primary: String = UserDefaults.standard.string(forKey: "primaryCalendar") ?? ""
+    @Published var asanaCalendar = UserDefaults.standard.string(forKey: "asanaCalendar") ?? ""
     @Published var message = "Connect to the calendars already synced with Apple Calendar."
     @Published var script = ""
     @Published var revision = 0
@@ -101,13 +102,20 @@ import ServiceManagement
         UserDefaults.standard.set(Array(selected), forKey: "selectedCalendars")
         UserDefaults.standard.set(name, forKey: "firstName")
         UserDefaults.standard.set(primary, forKey: "primaryCalendar")
+        UserDefaults.standard.set(asanaCalendar, forKey: "asanaCalendar")
         extras.refresh()
         if setupCompleted { mail.refresh() }
         let now = Date()
         let start = Calendar.current.startOfDay(for: now)
         let end = Calendar.current.date(byAdding: .day, value: 91, to: start)!
         let events = store.events(matching: store.predicateForEvents(withStart: start, end: end, calendars: chosen))
-        let calendar = calendarPayload(events, now: now, primary: primary)
+        let calendar = calendarPayload(events.filter { $0.calendar.calendarIdentifier != asanaCalendar }, now: now, primary: primary)
+        let asanaSource = calendars.first { $0.calendarIdentifier == asanaCalendar }
+        let asanaEvents = asanaSource.map { source in
+            store.events(matching: store.predicateForEvents(withStart: start,
+                end: Calendar.current.date(byAdding: .day, value: 15, to: start)!, calendars: [source]))
+        } ?? []
+        let asana = asanaPayload(asanaEvents, now: now, calendarName: asanaSource?.title)
         pendingInvitations = [:]
         let pendingIDs = Set(calendar.pendingInvites.map(\.id))
         for event in events {
@@ -118,6 +126,7 @@ import ServiceManagement
             let generatedAt: String
             let userFirstName: String
             let calendar: CalendarPayload
+            let asana: AsanaPayload
             let verse: DashboardExtras.Verse
             let weather: DashboardExtras.Weather
             let mail: MailSnapshot
@@ -125,12 +134,12 @@ import ServiceManagement
         }
         do {
             let data = try JSONEncoder().encode(Dashboard(generatedAt: ISO8601DateFormatter().string(from: now),
-                userFirstName: name.isEmpty ? "there" : name, calendar: calendar, verse: extras.verse, weather: extras.weather, mail: mail.snapshot, calendarActions: calendarActions))
+                userFirstName: name.isEmpty ? "there" : name, calendar: calendar, asana: asana, verse: extras.verse, weather: extras.weather, mail: mail.snapshot, calendarActions: calendarActions))
             script = "window.LOCAL_CALENDAR_PROTOTYPE = true; window.DASHBOARD_DATA = " + String(decoding: data, as: UTF8.self) + ";"
             // Load only the two explicitly supported personal files, without bundling them.
-            if let path = Bundle.main.object(forInfoDictionaryKey: "TodayPersonalDataDirectory") as? String {
+            if let directory = TodayPaths.personalData {
                 for filename in ["schedule.js", "plan.js"] {
-                    let url = URL(fileURLWithPath: path).appendingPathComponent(filename)
+                    let url = directory.appendingPathComponent(filename)
                     if let source = try? String(contentsOf: url, encoding: .utf8) {
                         script += "\n;try {\n" + source + "\n} catch (_) {}\n"
                     }
@@ -148,6 +157,7 @@ struct DashboardWebView: NSViewRepresentable {
     func makeNSView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
         configuration.userContentController.add(context.coordinator, name: "calendarRefresh")
+        configuration.userContentController.add(context.coordinator, name: "openSettings")
         configuration.userContentController.add(context.coordinator, name: "mailOpen")
         configuration.userContentController.add(context.coordinator, name: "mailOpenApp")
         configuration.userContentController.add(context.coordinator, name: "respondInCalendar")
@@ -172,7 +182,7 @@ struct DashboardWebView: NSViewRepresentable {
             if !started {
                 started = true
                 view.configuration.userContentController.addUserScript(WKUserScript(source: script, injectionTime: .atDocumentStart, forMainFrameOnly: true))
-                let root = Bundle.main.resourceURL!.appendingPathComponent("dashboard")
+                let root = TodayPaths.dashboard
                 view.loadFileURL(root.appendingPathComponent("index.html"), allowingReadAccessTo: root)
                 return
             }
@@ -197,7 +207,9 @@ struct DashboardWebView: NSViewRepresentable {
         init(_ model: CalendarModel) { self.model = model }
         func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
             guard message.frameInfo.isMainFrame, message.frameInfo.request.url?.isFileURL == true else { return }
-            if message.name == "respondInCalendar", let id = message.body as? String {
+            if message.name == "openSettings" {
+                NotificationCenter.default.post(name: Notification.Name("TodayOpenSettings"), object: nil)
+            } else if message.name == "respondInCalendar", let id = message.body as? String {
                 model.respondInCalendar(id: id)
             } else if message.name == "mailOpenApp" {
                 model.mail.openMailApp()
@@ -224,11 +236,17 @@ struct CalendarSettingsView: View {
     @State private var selected: Set<String> = []
     @State private var name = ""
     @State private var primary = ""
+    @State private var asanaCalendar = ""
 
     var body: some View {
         ScrollView {
         VStack(alignment: .leading, spacing: 18) {
             Text("Settings").font(.title2.weight(.semibold))
+            if let project = TodayPaths.project {
+                Button("Open customization folder") { NSWorkspace.shared.open(project) }
+                Text("Open this folder in Codex or Claude to customize Today. Restart Today after layout edits; schedule and plan edits appear on refresh.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             Text("Choose the Apple calendars you want to see in Today.")
                 .foregroundStyle(.secondary)
             VStack(alignment: .leading, spacing: 6) {
@@ -243,7 +261,58 @@ struct CalendarSettingsView: View {
                 if let error = login.error { Text(error).font(.caption).foregroundStyle(.red) }
             }
             Divider()
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Weather").font(.headline)
+                Label(model.extras.locationAuthorized ? "Location access allowed" : model.extras.locationDenied ? "Location access is off" : "Location not connected",
+                      systemImage: model.extras.locationAuthorized ? "checkmark.circle.fill" : "location.slash")
+                    .foregroundStyle(model.extras.locationAuthorized ? Color.green : Color.secondary)
+                Text("Today uses your Mac’s location for local weather. Only approximate coordinates are sent to the weather service.")
+                    .font(.caption).foregroundStyle(.secondary)
+                HStack {
+                    if !model.extras.locationAuthorized && !model.extras.locationDenied {
+                        Button("Enable location") {
+                            UserDefaults.standard.set(false, forKey: "introWeatherSkipped")
+                            model.extras.requestLocationAccess()
+                        }
+                    }
+                    Button("Open Location Settings") {
+                        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices") {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }
+                    if model.extras.locationAuthorized {
+                        Button(model.extras.weatherBusy ? "Updating…" : "Refresh weather") { model.extras.retryWeather() }
+                            .disabled(model.extras.weatherBusy)
+                    }
+                }
+                if model.extras.locationDenied {
+                    Text("Enable Location Services and allow Today in macOS Settings, then return here.")
+                        .font(.caption).foregroundStyle(.secondary)
+                } else if model.extras.locationAuthorized {
+                    Text(model.extras.weather.message.isEmpty ? "Local forecast is up to date." : model.extras.weather.message)
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            Divider()
             MailSettingsView(mail: model.mail)
+            Divider()
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Asana tasks").font(.headline)
+                Text("In Asana, open My Tasks → its menu → Sync to Calendar. Copy the subscription link, then in Apple Calendar choose File → New Calendar Subscription and paste it. Choose that calendar below.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Picker("Asana calendar", selection: $asanaCalendar) {
+                    Text("Not connected").tag("")
+                    ForEach(model.calendars, id: \.calendarIdentifier) { calendar in
+                        Text("\(calendar.title) — \(calendar.source.title)").tag(calendar.calendarIdentifier)
+                    }
+                }
+                HStack {
+                    Button("Reload calendars") { model.loadCalendars() }
+                    Link("Setup guide ↗", destination: URL(string: "https://asana.com/apps/calendar")!)
+                }
+                Text("Shows due dates through the next 14 days. Subscription updates may be delayed. Complete tasks in Asana; tasks without due dates aren’t included.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
             Divider()
             TextField("Your first name", text: $name).textFieldStyle(.roundedBorder)
             Picker("Primary calendar", selection: $primary) {
@@ -277,6 +346,7 @@ struct CalendarSettingsView: View {
                 Button("Save") {
                     model.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
                     model.primary = primary
+                    model.asanaCalendar = asanaCalendar
                     model.selected = selected
                     model.refresh()
                     if !model.script.isEmpty { dismiss() }
@@ -290,17 +360,72 @@ struct CalendarSettingsView: View {
             selected = model.selected
             name = model.name
             primary = model.primary
+            asanaCalendar = model.asanaCalendar
         }
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in login.reload() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            login.reload()
+            model.objectWillChange.send()
+        }
         .onChange(of: primary) { _, value in
             if !value.isEmpty { selected.insert(value) }
         }
     }
 }
 
+// Resolve this view's own window, including when SwiftUI attaches it after creation.
+struct DashboardWindowLevel: NSViewRepresentable {
+    var alwaysOnTop: Bool
+    @ObservedObject var space: WindowSpaceController
+
+    final class WindowView: NSView {
+        private weak var configuredWindow: NSWindow?
+        private var originalSpaceBehavior: NSWindow.CollectionBehavior = []
+        weak var space: WindowSpaceController?
+        var alwaysOnTop = false {
+            didSet { applyLevel() }
+        }
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if let window, configuredWindow !== window {
+                configuredWindow = window
+                originalSpaceBehavior = window.collectionBehavior.intersection([.canJoinAllSpaces, .moveToActiveSpace])
+                // Restore only on attachment, never during refreshes or live resizing.
+                // AppKit saves subsequent moves and resizes under this stable name.
+                window.setFrameUsingName("TodayDashboardWindow")
+                window.setFrameAutosaveName("TodayDashboardWindow")
+            }
+            applyLevel()
+        }
+        private func applyLevel() {
+            guard let window else { return }
+            space?.window = window
+            space?.update(pinned: alwaysOnTop)
+            let level: NSWindow.Level = alwaysOnTop ? .floating : .normal
+            if window.level != level { window.level = level }
+            var behavior = window.collectionBehavior
+            behavior.subtract([.canJoinAllSpaces, .moveToActiveSpace])
+            behavior.formUnion(alwaysOnTop ? [.canJoinAllSpaces] : originalSpaceBehavior)
+            if window.collectionBehavior != behavior { window.collectionBehavior = behavior }
+        }
+    }
+
+    func makeNSView(context: Context) -> WindowView {
+        let view = WindowView()
+        view.space = space
+        view.alwaysOnTop = alwaysOnTop
+        return view
+    }
+    func updateNSView(_ view: WindowView, context: Context) {
+        view.space = space
+        view.alwaysOnTop = alwaysOnTop
+    }
+}
+
 struct PrototypeView: View {
     @StateObject var model = CalendarModel()
+    @StateObject private var space = WindowSpaceController()
     @State private var settingsPresented = false
+    @AppStorage("alwaysOnTop") private var alwaysOnTop = false
     let timer = Timer.publish(every: 300, on: .main, in: .common).autoconnect()
     var body: some View {
         Group {
@@ -310,21 +435,58 @@ struct PrototypeView: View {
                 IntroView(model: model, mail: model.mail)
             }
         }
-        .frame(minWidth: 900, minHeight: 700)
+        .frame(minWidth: 480, minHeight: 360)
+        .background(DashboardWindowLevel(alwaysOnTop: alwaysOnTop, space: space))
         .navigationTitle("Today")
         .toolbar {
+            ToolbarItem {
+                Menu {
+                    Toggle("Reserve dashboard space", isOn: Binding(
+                        get: { space.enabled },
+                        set: { enabled in
+                            space.enabled = enabled
+                            if enabled { alwaysOnTop = true }
+                        }
+                    ))
+                    Text("Fits enlarged windows into the largest space beside Today.")
+                    if space.enabled && !alwaysOnTop {
+                        Text("Paused — turn on Always on top to resume.")
+                    }
+                    if !space.trusted {
+                        Text("Not active — macOS permission is missing.")
+                        Button("Allow window control…") { space.requestAccess() }
+                        Button("Show this copy of Today in Finder") {
+                            NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL])
+                        }
+                    }
+                    if !space.status.isEmpty { Text(space.status) }
+                } label: {
+                    Label("Reserve dashboard space", systemImage: space.enabled && !space.trusted ? "exclamationmark.triangle" : "rectangle.lefthalf.inset.filled")
+                }
+                .help("Reserve space for Today when another window is enlarged")
+            }
+            ToolbarItem {
+                Toggle(isOn: $alwaysOnTop) {
+                    Label("Always on top", systemImage: alwaysOnTop ? "pin.fill" : "pin")
+                }
+                .toggleStyle(.button)
+                .help(alwaysOnTop ? "Always on top on every desktop — click to turn off" : "Keep Today above other windows on every desktop")
+            }
             ToolbarItem {
                 Button { model.loadCalendars(); settingsPresented = true } label: {
                     Label("Settings", systemImage: "gearshape")
                 }.disabled(!model.connected || !model.setupCompleted).help("Choose calendars and edit your name")
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("TodayOpenSettings"))) { _ in settingsPresented = true }
         .sheet(isPresented: $settingsPresented) { CalendarSettingsView(model: model, login: model.login) }
         .onAppear {
+            if TodayPaths.portable && TodayPaths.project == nil { TodayPaths.chooseProject() }
             if EKEventStore.authorizationStatus(for: .event) == .fullAccess { model.refresh() }
         }
         .onReceive(timer) { _ in if EKEventStore.authorizationStatus(for: .event) == .fullAccess && !settingsPresented { model.refresh() } }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            space.refreshPermission()
             if EKEventStore.authorizationStatus(for: .event) == .fullAccess && !settingsPresented { model.refresh() }
         }
     }

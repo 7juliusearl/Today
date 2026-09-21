@@ -2,16 +2,28 @@
 set -euo pipefail
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 APP_DIR="$REPO_DIR/build/Today.app"
+# Replacing a running executable can leave TCC checking the previous signature.
+if pgrep -x TodayCalendar >/dev/null; then
+  echo "Quit Today before rebuilding so its running signature matches the installed app." >&2
+  exit 1
+fi
 mkdir -p "$APP_DIR/Contents/MacOS" "$APP_DIR/Contents/Resources/dashboard/icons"
-xcrun swiftc -parse-as-library -target "$(uname -m)-apple-macosx14.0" \
+for today_arch in ${TODAY_ARCHS:-$(uname -m)}; do
+xcrun swiftc -parse-as-library -target "$today_arch-apple-macosx14.0" \
   -module-cache-path "$REPO_DIR/build/swift-module-cache" \
   "$REPO_DIR/prototype/calendar/CalendarData.swift" \
   "$REPO_DIR/prototype/calendar/DashboardExtras.swift" \
   "$REPO_DIR/prototype/calendar/AppLifecycle.swift" \
+  "$REPO_DIR/prototype/calendar/WindowSpace.swift" \
   "$REPO_DIR/prototype/calendar/MailData.swift" \
+  "$REPO_DIR/prototype/calendar/TodayPaths.swift" \
   "$REPO_DIR/prototype/calendar/IntroView.swift" \
   "$REPO_DIR/prototype/calendar/TodayCalendar.swift" \
-  -o "$APP_DIR/Contents/MacOS/TodayCalendar"
+  -o "$REPO_DIR/build/TodayCalendar-$today_arch"
+done
+today_binaries=()
+for today_arch in ${TODAY_ARCHS:-$(uname -m)}; do today_binaries+=("$REPO_DIR/build/TodayCalendar-$today_arch"); done
+xcrun lipo -create "${today_binaries[@]}" -output "$APP_DIR/Contents/MacOS/TodayCalendar"
 cp "$REPO_DIR/app.js" "$REPO_DIR/styles.css" "$APP_DIR/Contents/Resources/dashboard/"
 cp "$REPO_DIR/prototype/calendar/overview.css" "$APP_DIR/Contents/Resources/dashboard/"
 cp "$REPO_DIR/icons/"*.png "$APP_DIR/Contents/Resources/dashboard/icons/"
@@ -89,5 +101,9 @@ info = plistlib.loads(path.read_bytes())
 info['TodayPersonalDataDirectory'] = sys.argv[2]
 path.write_bytes(plistlib.dumps(info))
 PYCONFIG
-codesign --force --deep --sign - "$APP_DIR"
+codesign --force --deep --sign "${TODAY_SIGNING_IDENTITY:--}" "$APP_DIR"
+codesign --verify --deep --strict "$APP_DIR"
+if [ "${TODAY_SIGNING_IDENTITY:--}" = "-" ]; then
+  echo "Development signing: macOS permissions may need re-adding after this rebuild. Set TODAY_SIGNING_IDENTITY to a stable signing certificate to preserve identity."
+fi
 printf 'Built: %s\n' "$APP_DIR"

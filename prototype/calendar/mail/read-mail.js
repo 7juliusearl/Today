@@ -1,3 +1,14 @@
+// Only reply-chain identifiers leave this parser; other headers are discarded.
+function threadReferences(headers) {
+  const unfolded = String(headers || '').replace(/\r?\n[ \t]+/g, ' ');
+  const ids = [];
+  for (const line of unfolded.split(/\r?\n/)) {
+    if (!/^(references|in-reply-to):/i.test(line)) continue;
+    for (const match of line.matchAll(/<([^<>\s]+)>/g)) ids.push(match[1]);
+  }
+  return [...new Set(ids)];
+}
+
 // Executed by osascript inside the local app. Never reads message bodies or writes mail.
 function run(argv) {
   const mail = Application('Mail');
@@ -32,7 +43,9 @@ function run(argv) {
   for (const {date, index} of indices) {
     const message = matches[index];
     const attachmentCount = message.mailAttachments.length;
-    items.push({ attachmentCount, isRead: message.readStatus(), id: String(message.id()), messageID: message.messageId() || '',
+    let references = [];
+    try { references = threadReferences(message.allHeaders()); } catch (_) { /* Keep unthreaded if headers aren't available. */ }
+    items.push({ threadReferences: references, attachmentCount, isRead: message.readStatus(), id: String(message.id()), messageID: message.messageId() || '',
       subject: String(message.subject() || '(No subject)').slice(0, 500),
       sender: String(message.sender() || '').slice(0, 300), receivedAt: date.toISOString() });
   }

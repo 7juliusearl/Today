@@ -107,3 +107,36 @@ func calendarPayload(_ events: [EKEvent], now: Date, primary: String?) -> Calend
     return .init(events: valid.filter { overlaps($0, today, tomorrow) }.map { mappedEvent($0, primary: primary) },
                  upcoming: days, pendingInvites: Array(pending.prefix(30)))
 }
+
+struct AsanaPayload: Encodable {
+    struct Task: Encodable {
+        let id: String
+        let title: String
+        let dueDate: String
+        let url: String?
+    }
+    let connected: Bool
+    let calendarName: String?
+    let tasks: [Task]
+}
+
+func asanaPayload(_ events: [EKEvent], now: Date, calendarName: String?) -> AsanaPayload {
+    let calendar = Calendar.current
+    let today = calendar.startOfDay(for: now)
+    let end = calendar.date(byAdding: .day, value: 15, to: today)!
+    let format = DateFormatter()
+    format.locale = Locale(identifier: "en_US_POSIX")
+    format.timeZone = calendar.timeZone
+    format.dateFormat = "yyyy-MM-dd"
+    let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+    let tasks = events.filter { $0.status != .canceled && $0.startDate >= today && $0.startDate < end }
+        .sorted { $0.startDate < $1.startDate }.map { event in
+            let text = [event.url?.absoluteString ?? "", event.notes ?? ""].joined(separator: "\n")
+            let url = detector?.matches(in: text, range: NSRange(text.startIndex..., in: text)).compactMap { $0.url }.first {
+                $0.scheme == "https" && ($0.host == "app.asana.com" || $0.host == "asana.com")
+            }
+            return AsanaPayload.Task(id: event.calendarItemIdentifier + "@" + format.string(from: event.startDate),
+                title: event.title ?? "Untitled task", dueDate: format.string(from: event.startDate), url: url?.absoluteString)
+        }
+    return .init(connected: calendarName != nil, calendarName: calendarName, tasks: tasks)
+}

@@ -53,7 +53,22 @@ import JavaScriptCore
         assert(context.evaluateScript("JSON.parse(run(['read', JSON.stringify({account: 'account-one', mailbox: 'INBOX'})])).items.length")!.toInt32() == 0)
         context.setObject(try String(contentsOfFile: "app.js", encoding: .utf8), forKeyedSubscript: "appSource" as NSString)
         context.evaluateScript("new Function(appSource)")
+        context.evaluateScript("""
+        eval(appSource.slice(appSource.indexOf('function groupMailThreads'), appSource.indexOf('function renderMail')));
+        function mail(id, refs, day = 1) { return {id, messageID:id, threadReferences:refs, sender:'Same sender', subject:'Same subject', receivedAt:`2026-09-${20+day}T08:00:00Z`}; }
+        function check(value, text) { if (!value) throw Error(text); }
+        check(groupMailThreads([mail('a', []), mail('b', [])]).length === 2, 'Same sender/subject alone must not merge');
+        check(groupMailThreads([mail('a', []), mail('b', ['a'])]).length === 1, 'Direct reply');
+        check(groupMailThreads([mail('a', ['old']), mail('b', ['old'])]).length === 1, 'Shared ancestor outside today');
+        check(groupMailThreads([mail('a', []), mail('c', ['b']), mail('b', ['a'])]).length === 1, 'Out-of-order chain');
+        check(groupMailThreads([mail('a', []), mail('a', [])])[0].length === 1, 'Duplicate Message-ID');
+        check(groupMailThreads([mail('', []), {...mail('', []), id:'other'}]).length === 2, 'Missing identifiers stay separate');
+        check(groupMailThreads([mail('a', []), mail('b', ['a'], 2)])[0][0].id === 'b', 'Newest message leads');
+        check(threadReferences('References: <a>\\r\\n <b>\\r\\nIn-Reply-To: <b>').join(',') === 'a,b', 'Folded reply headers');
+        check(threadReferences('Subject: Same subject').length === 0, 'Ignore unrelated headers');
+        """)
+
         assert(errors.isEmpty, errors.joined(separator: "\n"))
-        print("PASS: mailbox selection, today-only boundaries, read and unread mail, newest-first order, no eight-message limit, header-only reads, and dashboard JavaScript syntax.")
+        print("PASS: mailbox selection, today-only boundaries, read and unread mail, newest-first order, no eight-message limit, header-only reads, reply-chain grouping and isolation, folded headers, and dashboard JavaScript syntax.")
     }
 }

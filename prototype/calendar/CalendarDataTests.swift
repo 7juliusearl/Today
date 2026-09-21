@@ -34,6 +34,17 @@ import EventKit
         let recurring = event("Occurrence", day(1), day(1).addingTimeInterval(3600))
         let next = event("Occurrence", day(2), day(2).addingTimeInterval(3600))
         assert(mappedEvent(recurring, primary: nil).id != mappedEvent(next, primary: nil).id, "Occurrences have distinct IDs")
+        let task = event("Task deadline", day(1), day(2), allDay: true)
+        task.notes = "Open https://app.asana.com/0/123/456"
+        let unsafeTask = event("Unsafe URL", today, day(1), allDay: true)
+        unsafeTask.url = URL(string: "https://app.asana.com.evil.example/123")
+        let asana = asanaPayload([task, unsafeTask, ended, event("Beyond window", day(15), day(16))], now: today, calendarName: "Asana")
+        assert(asana.connected && asana.tasks.count == 2, "Only today and next 14 days")
+        assert(asana.tasks[0].url == nil, "Reject lookalike Asana domains")
+        assert(asana.tasks[1].url == "https://app.asana.com/0/123/456", "Extract task link from notes")
+        let dateFormat = DateFormatter(); dateFormat.dateFormat = "yyyy-MM-dd"
+        assert(asana.tasks[1].dueDate == dateFormat.string(from: day(1)), "Preserve local calendar due day")
+        assert(!asanaPayload([], now: today, calendarName: nil).connected, "Disconnected calendar is explicit")
         let encoded = try JSONEncoder().encode(payload)
         _ = try JSONSerialization.jsonObject(with: encoded)
         print("Passed calendar mapping checks: one-off/weekly recurrence, overlap, all-day boundaries, meeting links, unsafe URLs, upcoming limit, occurrence IDs, JSON output.")
