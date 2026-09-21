@@ -9,17 +9,25 @@ import JavaScriptCore
         context.evaluateScript("""
         let queriedUnread = false;
         let queriedWindow = false;
-        const rows = Array.from({length: 12}, (_, i) => ({
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+        const rows = Array.from({length: 14}, (_, i) => ({
+          date: i === 12 ? new Date(today.getTime() - 1000) : i === 13 ? tomorrow : new Date(today.getTime() + i * 60000),
+          mailAttachments: {length: i < 3 ? 1 : 0},
           id: () => i, messageId: () => 'id-' + i + '@example.test',
+          readStatus: () => i % 2 === 0,
           subject: () => '<script>Untrusted subject</script>', sender: () => 'Sender',
           get content() { throw Error('Must not read message body'); }
         }));
-        rows.dateReceived = () => Array.from({length: 12}, (_, i) => new Date(2026, 8, 1 + i));
-        const inbox = { name: () => 'INBOX', unreadCount: () => 25, messages: {
+        const inbox = { name: () => 'INBOX', messages: {
           whose: predicate => {
-            queriedUnread = predicate._and[0].readStatus === false;
-            queriedWindow = predicate._and[1].dateReceived._greaterThan instanceof Date;
-            return rows;
+            queriedUnread = predicate._and.some(p => p.readStatus !== undefined);
+            const start = predicate._and[0].dateReceived._greaterThanEquals;
+            const end = predicate._and[1].dateReceived._lessThan;
+            queriedWindow = +start === +today && +end === +tomorrow;
+            const matches = rows.filter(row => row.date >= start && row.date < end);
+            matches.dateReceived = () => matches.map(row => row.date);
+            return matches;
           }
         }};
         const boxes = () => [inbox];
@@ -34,14 +42,18 @@ import JavaScriptCore
         let choices = context.evaluateScript("JSON.parse(run(['mailboxes']))")!.toArray()!
         assert(choices.count == 1)
         let result = context.evaluateScript("JSON.parse(run(['read', JSON.stringify({account: 'account-one', mailbox: 'INBOX'})]))")!.toDictionary()!
-        assert(result["unreadCount"] as? Int == 25)
         let items = result["items"] as! [[String: Any]]
-        assert(items.count == 8 && items.first?["id"] as? String == "11", "Return eight newest messages")
+        assert(items.count == 12 && items.first?["id"] as? String == "11", "Return all today’s messages newest first, including more than eight")
         assert(items.first?["subject"] as? String == "<script>Untrusted subject</script>", "Subjects are data, not executed scripts")
-        assert(context.evaluateScript("queriedUnread && queriedWindow")!.toBool(), "Read only unread messages in the lookback window")
+        assert(context.evaluateScript("!queriedUnread && queriedWindow")!.toBool(), "Include read and unread within local midnight boundaries")
+        assert(items.last?["id"] as? String == "0", "Include midnight today, exclude yesterday and tomorrow")
+        assert(items.first?["isRead"] as? Bool == false, "Preserve unread status from Mail")
+        assert(items.last?["isRead"] as? Bool == true, "Preserve read status from Mail")
+        context.evaluateScript("rows.length = 0")
+        assert(context.evaluateScript("JSON.parse(run(['read', JSON.stringify({account: 'account-one', mailbox: 'INBOX'})])).items.length")!.toInt32() == 0)
         context.setObject(try String(contentsOfFile: "app.js", encoding: .utf8), forKeyedSubscript: "appSource" as NSString)
         context.evaluateScript("new Function(appSource)")
         assert(errors.isEmpty, errors.joined(separator: "\n"))
-        print("PASS: mailbox selection, unread filter, 14-day query, newest-first order, eight-message limit, header-only reads, and dashboard JavaScript syntax.")
+        print("PASS: mailbox selection, today-only boundaries, read and unread mail, newest-first order, no eight-message limit, header-only reads, and dashboard JavaScript syntax.")
     }
 }

@@ -13,6 +13,7 @@ xcrun swiftc -parse-as-library -target "$(uname -m)-apple-macosx14.0" \
   -o "$APP_DIR/Contents/MacOS/TodayCalendar"
 cp "$REPO_DIR/app.js" "$REPO_DIR/styles.css" "$APP_DIR/Contents/Resources/dashboard/"
 cp "$REPO_DIR/icons/"*.png "$APP_DIR/Contents/Resources/dashboard/icons/"
+cp "$REPO_DIR/prototype/calendar/open-calendar.js" "$APP_DIR/Contents/Resources/"
 cp "$REPO_DIR/prototype/calendar/mail/read-mail.js" "$APP_DIR/Contents/Resources/"
 cp "$REPO_DIR/icons/Today.icns" "$APP_DIR/Contents/Resources/"
 # Only public UI assets are bundled. Never copy data/ or the repository wholesale.
@@ -23,7 +24,9 @@ html = (repo / 'index.html').read_text()
 html = re.sub(r'<link[^>]+rel="manifest"[^>]*>', '', html)
 html = re.sub(r'<script src="data/[^\"]+"></script>', '', html)
 html = html.replace('<div class="glass-card bento-comingup"', '''<div class="glass-card bento-mail">
-  <div class="panel-head"><p class="eyebrow">Apple Mail</p><h2 class="panel-title" id="mail-title">Inbox</h2></div>
+  <div class="panel-head mail-header"><div><p class="eyebrow">Apple Mail</p><h2 class="panel-title" id="mail-title">Inbox</h2></div>
+    <button type="button" class="mail-open-app" id="mail-open-app">Open Mail ↗</button>
+  </div>
   <div class="panel-body" id="mail-list"></div>
 </div>
 <div class="glass-card bento-comingup"''')
@@ -31,9 +34,28 @@ html = html.replace('</head>',  '''<style>
 .bento-slack, .sticky-notes { display: none !important; }
 .bento-mail, .bento-comingup { grid-column: span 6; }
 .bento-mail { padding: 30px; }
-.mail-item { display: block; width: 100%; text-align: left; background: none; border: 0; border-bottom: 1px solid #8883; padding: 14px 0; color: inherit; font: inherit; cursor: pointer; }
-.mail-sender, .mail-date { display: block; font-size: 12px; opacity: .65; margin: 5px 0; }
-.mail-subject { font-weight: 600; overflow-wrap: anywhere; }
+.mail-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.mail-open-app { font: inherit; font-size: 12px; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+.mail-open-app { white-space: nowrap; opacity: .6; margin-top: 3px; }
+.mail-open-app:hover { opacity: 1; color: #ed4b20; text-decoration: underline; }
+#mail-list { max-height: none; overflow: visible; min-width: 0; gap: 0; }
+.mail-status { font-size: 11px; line-height: 1.5; opacity: .55; margin: 0 0 12px; overflow-wrap: anywhere; }
+.mail-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 10px; row-gap: 4px; padding: 12px 0; cursor: pointer; width: 100%; text-align: left; font: inherit; color: inherit; background: none; border: 0; border-bottom: 1px solid #8883; min-width: 0; }
+.mail-item:last-child { border-bottom: 0; }
+.mail-item:hover .mail-sender { color: var(--accent); }
+.mail-item:disabled { opacity: .5; cursor: default; }
+.mail-item-unread { position: relative; isolation: isolate; }
+.mail-item-unread::before, .mail-item-unread::after { content: ''; position: absolute; inset: 3px -10px; border-radius: 10px; pointer-events: none; z-index: -1; }
+.mail-item-unread::before { background: linear-gradient(120deg, var(--accent), var(--accent-2) 55%, transparent); opacity: .045; }
+.mail-item-unread::after { padding: 1px; background: linear-gradient(120deg, var(--accent), var(--accent-2) 55%, transparent); opacity: .18; -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); -webkit-mask-composite: xor; mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); mask-composite: exclude; }
+.mail-sender { grid-column: 1; font-family: var(--sans); font-size: 17px; line-height: 1.3; font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }
+.mail-item-read .mail-sender { font-weight: 500; }
+.mail-read-status { display: inline-flex; align-items: center; gap: 5px; margin-left: 8px; vertical-align: middle; font-size: 10px; line-height: 1.4; font-weight: 500; color: var(--ink-soft); white-space: nowrap; }
+.mail-item-unread .mail-read-status::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: #409cff; flex-shrink: 0; }
+.mail-time { grid-column: 2; font-size: 11px; opacity: .55; white-space: nowrap; }
+.mail-subject { grid-column: 1 / 3; grid-row: 2; font-size: 12px; line-height: 1.5; font-weight: 400; color: var(--ink-soft); overflow-wrap: anywhere; }
+.mail-attachments { grid-column: 1 / 3; font-size: 11px; opacity: .55; }
+.mail-item:focus-visible, .mail-open-app:focus-visible { outline: 2px solid #ed4b20; outline-offset: 4px; }
 @media (max-width: 800px) { .bento-schedule, .bento-mail, .bento-comingup { grid-column: span 12; } }
 </style></head>''')
 (app / 'Contents/Resources/dashboard/index.html').write_text(html)
@@ -50,7 +72,7 @@ cat > "$APP_DIR/Contents/Info.plist" <<'PLIST'
 <key>CFBundleShortVersionString</key><string>0.1</string>
 <key>CFBundleIconFile</key><string>Today.icns</string>
 <key>LSMinimumSystemVersion</key><string>14.0</string>
-<key>NSAppleEventsUsageDescription</key><string>Read unread message headers from the mailbox you choose in Apple Mail and open messages when you click them. Today does not send or change mail during refresh.</string>
+<key>NSAppleEventsUsageDescription</key><string>Read today’s message headers from the mailbox you choose in Apple Mail and open messages when you click them. Also reveal selected invitations in Calendar so you can respond there. Today does not submit responses or change messages.</string>
 <key>NSLocationWhenInUseUsageDescription</key><string>Show local weather in Today. Only approximate coordinates are sent to the weather service.</string>
 <key>NSLocationUsageDescription</key><string>Show local weather in Today using your approximate location.</string>
 <key>NSCalendarsFullAccessUsageDescription</key><string>Show events from calendars you select in your local Today dashboard. This prototype only reads events and does not upload them.</string>

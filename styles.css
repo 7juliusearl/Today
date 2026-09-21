@@ -410,8 +410,27 @@ body {
   min-height: unset;
 }
 
+.upcoming-day-group {
+  position: relative;
+  isolation: isolate;
+  padding: 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--line);
+}
+
+.upcoming-day-group::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: linear-gradient(135deg, var(--accent-glow), var(--accent-soft) 48%, transparent 100%);
+  opacity: calc(var(--day-glow, 0) * 0.7);
+  pointer-events: none;
+}
+
 .upcoming-day-group + .upcoming-day-group {
-  margin-top: 22px;
+  margin-top: 12px;
 }
 
 .upcoming-day-date {
@@ -1317,3 +1336,42 @@ a.slack-item:hover {
     transform: rotate(-2deg);
   }
 }
+
+/* Current calendar events, updated by the dashboard clock. */
+.happening-now { padding: 22px 30px; margin-bottom: 24px; }
+.happening-now .panel-head { margin-bottom: 14px; padding-right: calc(25% + 20px); }
+.now-event + .now-event { border-top: 1px solid var(--line); margin-top: 18px; padding-top: 18px; }
+.now-event-top { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.now-event-info { min-width: 0; }
+.now-actions { margin-top: 12px; }
+.now-actions .now-join { display: inline-block; }
+.now-countdown { flex: 0 0 clamp(150px, 25%, 290px); text-align: center; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.now-event:first-child .now-countdown { margin-top: -64px; }
+.now-countdown-label, .now-countdown-unit { font-family: var(--sans); color: var(--ink-soft); font-size: 11px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; line-height: 1.3; }
+.now-countdown-number { font-family: var(--sans); font-size: clamp(80px, 10vw, 112px); line-height: .9; font-weight: 800; letter-spacing: -.065em; font-variant-numeric: tabular-nums; color: var(--ink); padding-right: .065em; }
+.now-live { color: var(--accent); font-size: 11px; font-weight: 700; letter-spacing: .05em; margin: 0 0 8px; }
+.now-live span { margin-right: 5px; }
+.now-event h3 { font-size: 19px; line-height: 1.35; margin: 0 0 7px; overflow-wrap: anywhere; }
+.now-meta, .now-next { color: var(--ink-soft); font-size: 12px; line-height: 1.5; margin: 0; overflow-wrap: anywhere; }
+.now-empty { font-size: 16px; font-weight: 600; margin: 0 0 8px; }
+.now-join { color: var(--accent); background: var(--accent-soft); border: 1px solid var(--accent-glow); border-radius: 999px; padding: 10px 16px; font-size: 12px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.now-join:hover { background: var(--glass-bg-strong); }
+.now-join:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.now-progress { height: 3px; background: var(--line); border-radius: 3px; overflow: hidden; margin-top: 15px; }
+.now-progress span { display: block; height: 100%; background: var(--accent); border-radius: inherit; }
+@media (max-width: 600px) {
+  .happening-now { padding: 22px; }
+  .now-event-top { gap: 16px; }
+  .now-countdown { flex-basis: 100px; }
+  .happening-now .panel-head { padding-right: 116px; }
+  .now-countdown-number { font-size: 76px; }
+  .now-countdown-label, .now-countdown-unit { font-size: 10px; letter-spacing: 1.5px; }
+}
+
+.invite-mail-row + .invite-mail-row { border-top: 1px solid var(--line); padding-top: 16px; }
+.invite-mail-row h3 { margin: 0 0 5px; font-size: 15px; overflow-wrap: anywhere; }
+.invite-mail-meta { color: var(--ink-soft); font-size: 12px; margin: 6px 0; line-height: 1.5; }
+.invite-mail-action { border: 0; background: none; color: var(--accent); font: inherit; font-size: 12px; padding: 5px 0; cursor: pointer; }
+.invite-mail-match { display: block; border: 1px solid var(--line); background: var(--glass-bg); color: var(--ink); font: inherit; font-size: 12px; line-height: 1.5; width: 100%; text-align: left; padding: 10px 12px; margin-top: 6px; border-radius: 8px; cursor: pointer; overflow-wrap: anywhere; }
+.invite-mail-action:disabled, .invite-mail-match:disabled { opacity: .5; cursor: default; }
+.invite-mail-action:focus-visible, .invite-mail-match:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }

@@ -1,4 +1,4 @@
-const DATA = window.DASHBOARD_DATA || { calendar: { events: [], upcoming: [], pendingInvites: [] }, slack: { connected: false, items: [] }, stickyNotes: [] };
+let DATA = window.DASHBOARD_DATA || { calendar: { events: [], upcoming: [], pendingInvites: [] }, slack: { connected: false, items: [] }, stickyNotes: [] };
 
 const WEATHER_CODES = {
   0: "Clear sky", 1: "Mostly clear", 2: "Partly cloudy", 3: "Overcast",
@@ -37,6 +37,7 @@ function timeGreeting(hour, seed) {
   return bucket[seed % bucket.length];
 }
 
+let greetingClockTimer;
 function renderGreetingAndClock() {
   const now = new Date();
   document.getElementById("greeting").textContent =
@@ -54,9 +55,11 @@ function renderGreetingAndClock() {
     h = h % 12 || 12;
     const m = String(t.getMinutes()).padStart(2, "0");
     document.getElementById("clock").textContent = `${h}:${m} ${ampm}`;
+    renderHappeningNow(t);
   }
   tick();
-  setInterval(tick, 1000 * 15);
+  clearInterval(greetingClockTimer);
+  greetingClockTimer = setInterval(tick, 1000 * 15);
 }
 
 function formatEventTime(iso, allDay) {
@@ -71,6 +74,73 @@ function formatTimeRange(ev) {
   if (!ev.end) return start;
   const end = formatEventTime(ev.end, false);
   return end && end !== start ? `${start} – ${end}` : start;
+}
+
+function happeningNowState(events, now = new Date()) {
+  const timed = events.filter(ev => !ev.allDay && ev.status !== "cancelled" &&
+    ev.status !== "canceled" && ev.myResponseStatus !== "declined" &&
+    Number.isFinite(Date.parse(ev.start)) && Number.isFinite(Date.parse(ev.end)) &&
+    Date.parse(ev.end) > Date.parse(ev.start));
+  return {
+    active: timed.filter(ev => Date.parse(ev.start) <= now.getTime() && now.getTime() < Date.parse(ev.end))
+      .sort((a, b) => Date.parse(a.end) - Date.parse(b.end)),
+    soon: timed.filter(ev => Date.parse(ev.start) > now.getTime() && Date.parse(ev.start) - now.getTime() <= 60 * 60000)
+      .sort((a, b) => Date.parse(a.start) - Date.parse(b.start)),
+    next: timed.filter(ev => Date.parse(ev.start) > now.getTime())
+      .sort((a, b) => Date.parse(a.start) - Date.parse(b.start))[0]
+  };
+}
+
+function eventCountdown(start, now) {
+  const remaining = Date.parse(start) - now.getTime();
+  if (remaining <= 0 || remaining > 60 * 60000) return null;
+  const minutes = Math.ceil(remaining / 60000);
+  return `Happening in ${minutes} ${minutes === 1 ? "min" : "mins"}`;
+}
+
+function renderHappeningNow(now = new Date()) {
+  const container = document.getElementById("happening-now-content");
+  if (!container) return;
+  const calendar = DATA.calendar || {};
+  const events = [...(calendar.events || []), ...(calendar.upcoming || []).flatMap(day => day.events || [])];
+  const unique = Array.from(new Map(events.map(ev => [`${ev.id || ev.title}|${ev.start}`, ev])).values());
+  const { active, soon, next } = happeningNowState(unique, now);
+  document.getElementById("happening-now-title").textContent = !active.length && soon.length ? "Happening soon" : "Happening now";
+  let markup;
+  if (!active.length && !soon.length) {
+    markup = `<p class="now-empty">Nothing scheduled right now.</p>${next
+      ? `<p class="now-next">Next: <strong>${escapeHtml(next.title)}</strong> · ${escapeHtml(formatEventDateTime(next))}</p>` : ""}`;
+  } else {
+    markup = [...active, ...soon].map(ev => {
+      const start = Date.parse(ev.start);
+      const end = Date.parse(ev.end);
+      const countdown = eventCountdown(ev.start, now);
+      const startingMinutes = Math.max(1, Math.ceil((start - now.getTime()) / 60000));
+      const remaining = Math.max(1, Math.ceil((end - now.getTime()) / 60000));
+      const elapsed = Math.max(0, Math.min(100, Math.round((now.getTime() - start) / (end - start) * 100)));
+      let join = "";
+      try {
+        const url = new URL(ev.meetingLink);
+        if (url.protocol === "https:" || url.protocol === "http:") {
+          join = `<a class="now-join" href="${escapeHtml(url.href)}" target="_blank" rel="noopener">Join meeting ↗</a>`;
+        }
+      } catch {}
+      return `<div class="now-event">
+        <div class="now-event-top"><div class="now-event-info">
+          <p class="now-live"><span aria-hidden="true">${countdown ? "◷" : "●"}</span> ${countdown ? "Up next" : "In progress"}</p>
+          <h3>${escapeHtml(ev.title)}</h3>
+          <p class="now-meta">${escapeHtml(formatTimeRange(ev))}${ev.location ? ` · ${escapeHtml(ev.location)}` : ""}</p>
+          ${join ? `<div class="now-actions">${join}</div>` : ""}
+        </div><div class="now-countdown" aria-label="${countdown ? `Starting within ${startingMinutes} minutes` : `${remaining} minutes remaining`}">
+          <span class="now-countdown-label">${countdown ? "Starting in" : "Time left"}</span>
+          <span class="now-countdown-number">${countdown ? startingMinutes : remaining}</span>
+          <span class="now-countdown-unit">${(countdown ? startingMinutes : remaining) === 1 ? "minute" : "minutes"}</span>
+        </div></div>
+        ${countdown ? "" : `<div class="now-progress" role="progressbar" aria-label="Event elapsed" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${elapsed}"><span style="width:${elapsed}%"></span></div>`}
+      </div>`;
+    }).join("");
+  }
+  if (container.innerHTML !== markup) container.innerHTML = markup;
 }
 
 const RESPONSE_LABELS = {
@@ -166,7 +236,7 @@ function renderEventItem(ev, isNow) {
   }
 
   return `
-    <details class="event ${isNow ? "event-now" : ""}">
+    <details class="event ${isNow ? "event-now" : ""}" data-event-key="${escapeHtml(`${ev.id || ev.title}|${ev.start}`)}">
       <summary class="event-summary">${summaryInner}</summary>
       <div class="event-details">${renderEventDetailsBody(ev)}</div>
     </details>`;
@@ -206,8 +276,8 @@ function renderUpcoming() {
     return;
   }
 
-  document.getElementById("coming-up-events").innerHTML = days.map((day) => `
-    <div class="upcoming-day-group">
+  document.getElementById("coming-up-events").innerHTML = days.map((day, index) => `
+    <div class="upcoming-day-group" style="--day-glow: ${days.length === 1 ? 1 : 1 - index / (days.length - 1)}">
       <p class="upcoming-day-date">${escapeHtml(formatDayHeading(day.date))}</p>
       ${day.events.map((ev) => renderEventItem(ev, false)).join("")}
     </div>
@@ -227,6 +297,37 @@ function renderPendingInvites() {
 
   if (invites.length === 0) {
     section.hidden = true;
+    return;
+  }
+
+  if (window.LOCAL_CALENDAR_PROTOTYPE) {
+    const list = document.getElementById("pending-invites-list");
+    list.replaceChildren();
+    for (const ev of invites) {
+      const row = document.createElement("div");
+      row.className = "invite-mail-row";
+      const title = document.createElement("h3");
+      title.textContent = ev.title;
+      const meta = document.createElement("p");
+      meta.className = "invite-mail-meta";
+      meta.textContent = `${formatEventDateTime(ev)} · Awaiting response`;
+      const action = document.createElement("button");
+      action.className = "invite-mail-action";
+      action.type = "button";
+      const statusText = DATA.calendarActions?.[ev.id];
+      action.textContent = "Respond in Calendar ↗";
+      action.disabled = statusText === "Opening Calendar…";
+      action.addEventListener("click", () => window.webkit.messageHandlers.respondInCalendar.postMessage(ev.id));
+      row.append(title, meta, action);
+      if (statusText) {
+        const status = document.createElement("p");
+        status.className = "invite-mail-meta";
+        status.textContent = statusText;
+        row.append(status);
+      }
+      list.append(row);
+    }
+    section.hidden = false;
     return;
   }
 
@@ -446,33 +547,52 @@ function renderMail() {
   const list = document.getElementById("mail-list");
   if (!list) return;
   const mail = DATA.mail || {};
-  document.getElementById("mail-title").textContent = mail.updatedAt
-    ? `${mail.unreadCount} unread${mail.status ? " · Last update" : ""}` : "Inbox";
+  document.getElementById("mail-title").textContent = "Today’s emails";
   list.replaceChildren();
+  const openMail = document.getElementById("mail-open-app");
+  openMail.onclick = () => window.webkit.messageHandlers.mailOpenApp.postMessage("open");
   const note = document.createElement("p");
-  note.className = "empty-state";
+  note.className = "mail-status";
   note.textContent = mail.status || (mail.updatedAt
-    ? `${mail.label} · Latest unread from the past 14 days · Updated ${new Date(mail.updatedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
+    ? `${mail.label} · ${(mail.items || []).length} today · Updated ${new Date(mail.updatedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
     : "Connect Apple Mail in Settings.");
   list.append(note);
   for (const item of mail.items || []) {
-    const button = document.createElement("button");
-    button.className = "mail-item";
-    button.type = "button";
-    button.disabled = !item.messageID;
-    for (const [className, value] of [["mail-sender", item.sender], ["mail-subject", item.subject], ["mail-date", new Date(item.receivedAt).toLocaleString()]]) {
-      const span = document.createElement("span");
-      span.className = className;
-      span.textContent = value;
-      button.append(span);
+    const row = document.createElement("button");
+    row.className = "mail-item";
+    row.type = "button";
+    row.disabled = !item.messageID;
+    row.title = item.sender;
+    row.addEventListener("click", () => window.webkit.messageHandlers.mailOpen.postMessage(item.id));
+    const sender = document.createElement("span");
+    sender.className = "mail-sender";
+    sender.textContent = item.sender.replace(/\s*<[^>]+>\s*$/, "").replace(/^"|"$/g, "").trim() || item.sender;
+    if (typeof item.isRead === "boolean") {
+      row.classList.add(item.isRead ? "mail-item-read" : "mail-item-unread");
+      const readStatus = document.createElement("span");
+      readStatus.className = "mail-read-status";
+      readStatus.textContent = item.isRead ? "Read" : "Unread";
+      sender.append(readStatus);
     }
-    button.addEventListener("click", () => window.webkit.messageHandlers.mailOpen.postMessage(item.id));
-    list.append(button);
+    const time = document.createElement("span");
+    time.className = "mail-time";
+    time.textContent = new Date(item.receivedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    const subject = document.createElement("span");
+    subject.className = "mail-subject";
+    subject.textContent = item.subject;
+    row.append(sender, time, subject);
+    if (item.attachmentCount > 0) {
+      const count = document.createElement("span");
+      count.className = "mail-attachments";
+      count.textContent = `📎 ${item.attachmentCount} attachment${item.attachmentCount === 1 ? "" : "s"}`;
+      row.append(count);
+    }
+    list.append(row);
   }
   if (mail.updatedAt && !mail.status && !(mail.items || []).length) {
     const empty = document.createElement("p");
     empty.className = "empty-state";
-    empty.textContent = "No unread messages from the past 14 days.";
+    empty.textContent = "No emails received today.";
     list.append(empty);
   }
 }
@@ -848,6 +968,28 @@ function renderStickyNotes() {
     container.appendChild(el);
   });
 }
+
+// Native refreshes update content in place; they must not navigate the web view.
+window.refreshLocalDashboard = function () {
+  if (!window.LOCAL_CALENDAR_PROTOTYPE) return;
+  const x = window.scrollX;
+  const y = window.scrollY;
+  const detailKey = el => el.dataset.eventKey || el.id || el.querySelector("summary")?.textContent;
+  const expanded = new Set(Array.from(document.querySelectorAll("details[open]"), detailKey));
+  DATA = window.DASHBOARD_DATA;
+  renderGreetingAndClock();
+  renderSchedule();
+  renderUpcoming();
+  renderPendingInvites();
+  renderWorkSchedule();
+  renderHeroRhythm();
+  renderOnboardingPlan();
+  renderMail();
+  renderVerse();
+  initWeather();
+  document.querySelectorAll("details").forEach(el => { el.open = expanded.has(detailKey(el)); });
+  window.scrollTo({ left: x, top: y, behavior: "instant" });
+};
 
 initThemeToggle();
 initRefreshButton();

@@ -10,6 +10,8 @@ import ServiceManagement
     let extras = DashboardExtras()
     let login = LoginSettings()
     let mail = MailModel()
+    private var pendingInvitations: [String: EKEvent] = [:]
+    private var calendarActions: [String: String] = [:]
     private var automaticRefresh: AutoRefreshController?
     @Published var calendars: [EKCalendar] = []
     @Published var selected: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "selectedCalendars") ?? [])
@@ -33,6 +35,31 @@ import ServiceManagement
         extras.onChange = { [weak self] in
             guard let self, self.connected else { return }
             self.refresh()
+        }
+    }
+
+    func respondInCalendar(id: String) {
+        guard let event = pendingInvitations[id], calendarActions[id] != "Opening Calendar…" else { return }
+        struct Target: Encodable { let uid: String; let calendar: String; let start: String }
+        let target = Target(uid: event.calendarItemExternalIdentifier ?? "", calendar: event.calendar.title,
+                            start: ISO8601DateFormatter().string(from: event.startDate))
+        calendarActions[id] = "Opening Calendar…"
+        refresh()
+        Task {
+            do {
+                let input = String(decoding: try JSONEncoder().encode(target), as: UTF8.self)
+                let data = try await runLocalAutomation(resource: "open-calendar", arguments: [input])
+                struct Result: Decodable { let found: Bool }
+                let result = try JSONDecoder().decode(Result.self, from: data)
+                calendarActions[id] = result.found ? "Use Accept, Maybe, or Decline in Calendar."
+                    : "Calendar is open on the event’s date. Use its Invitations inbox to respond."
+            } catch {
+                calendarActions[id] = "Could not reveal the event. Allow Today under Privacy & Security → Automation → Calendar, or open Calendar’s Invitations inbox."
+                if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.iCal") {
+                    _ = try? await NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+                }
+            }
+            refresh()
         }
     }
 
@@ -71,8 +98,15 @@ import ServiceManagement
         mail.refresh()
         let now = Date()
         let start = Calendar.current.startOfDay(for: now)
-        let end = Calendar.current.date(byAdding: .day, value: 15, to: start)!
+        let end = Calendar.current.date(byAdding: .day, value: 91, to: start)!
         let events = store.events(matching: store.predicateForEvents(withStart: start, end: end, calendars: chosen))
+        let calendar = calendarPayload(events, now: now, primary: primary)
+        pendingInvitations = [:]
+        let pendingIDs = Set(calendar.pendingInvites.map(\.id))
+        for event in events {
+            let id = (event.eventIdentifier ?? event.calendarItemIdentifier) + "@" + ISO8601DateFormatter().string(from: event.startDate)
+            if pendingIDs.contains(id) { pendingInvitations[id] = event }
+        }
         struct Dashboard: Encodable {
             let generatedAt: String
             let userFirstName: String
@@ -80,10 +114,11 @@ import ServiceManagement
             let verse: DashboardExtras.Verse
             let weather: DashboardExtras.Weather
             let mail: MailSnapshot
+            let calendarActions: [String: String]
         }
         do {
             let data = try JSONEncoder().encode(Dashboard(generatedAt: ISO8601DateFormatter().string(from: now),
-                userFirstName: name.isEmpty ? "there" : name, calendar: calendarPayload(events, now: now, primary: primary), verse: extras.verse, weather: extras.weather, mail: mail.snapshot))
+                userFirstName: name.isEmpty ? "there" : name, calendar: calendar, verse: extras.verse, weather: extras.weather, mail: mail.snapshot, calendarActions: calendarActions))
             script = "window.LOCAL_CALENDAR_PROTOTYPE = true; window.DASHBOARD_DATA = " + String(decoding: data, as: UTF8.self) + ";"
             // Load only the two explicitly supported personal files, without bundling them.
             if let path = Bundle.main.object(forInfoDictionaryKey: "TodayPersonalDataDirectory") as? String {
@@ -107,6 +142,8 @@ struct DashboardWebView: NSViewRepresentable {
         let configuration = WKWebViewConfiguration()
         configuration.userContentController.add(context.coordinator, name: "calendarRefresh")
         configuration.userContentController.add(context.coordinator, name: "mailOpen")
+        configuration.userContentController.add(context.coordinator, name: "mailOpenApp")
+        configuration.userContentController.add(context.coordinator, name: "respondInCalendar")
         let view = WKWebView(frame: .zero, configuration: configuration)
         view.navigationDelegate = context.coordinator
         return view
@@ -114,18 +151,50 @@ struct DashboardWebView: NSViewRepresentable {
     func updateNSView(_ view: WKWebView, context: Context) {
         guard context.coordinator.revision != model.revision else { return }
         context.coordinator.revision = model.revision
-        view.configuration.userContentController.removeAllUserScripts()
-        view.configuration.userContentController.addUserScript(WKUserScript(source: model.script, injectionTime: .atDocumentStart, forMainFrameOnly: true))
-        let root = Bundle.main.resourceURL!.appendingPathComponent("dashboard")
-        view.loadFileURL(root.appendingPathComponent("index.html"), allowingReadAccessTo: root)
+        context.coordinator.update(model.script, in: view)
     }
     class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         let model: CalendarModel
         var revision = -1
+        private var started = false
+        private var ready = false
+        private var applying = false
+        private var pendingScript: String?
+
+        func update(_ script: String, in view: WKWebView) {
+            if !started {
+                started = true
+                view.configuration.userContentController.addUserScript(WKUserScript(source: script, injectionTime: .atDocumentStart, forMainFrameOnly: true))
+                let root = Bundle.main.resourceURL!.appendingPathComponent("dashboard")
+                view.loadFileURL(root.appendingPathComponent("index.html"), allowingReadAccessTo: root)
+                return
+            }
+            pendingScript = script
+            applyPending(in: view)
+        }
+        private func applyPending(in view: WKWebView) {
+            guard ready, !applying, let script = pendingScript else { return }
+            pendingScript = nil
+            applying = true
+            view.evaluateJavaScript(script + "\nwindow.refreshLocalDashboard();") { [weak self, weak view] _, error in
+                guard let self, let view else { return }
+                self.applying = false
+                if error != nil { self.model.message = "Could not update the dashboard. Try Refresh again." }
+                self.applyPending(in: view)
+            }
+        }
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            ready = true
+            applyPending(in: webView)
+        }
         init(_ model: CalendarModel) { self.model = model }
         func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
             guard message.frameInfo.isMainFrame, message.frameInfo.request.url?.isFileURL == true else { return }
-            if message.name == "mailOpen", let id = message.body as? String {
+            if message.name == "respondInCalendar", let id = message.body as? String {
+                model.respondInCalendar(id: id)
+            } else if message.name == "mailOpenApp" {
+                model.mail.openMailApp()
+            } else if message.name == "mailOpen", let id = message.body as? String {
                 model.mail.openMessage(id: id)
             } else if message.name == "calendarRefresh" {
                 model.mail.refresh(force: true)

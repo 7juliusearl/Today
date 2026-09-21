@@ -13,10 +13,11 @@ struct MailItem: Codable {
     let messageID: String
     let subject: String
     let sender: String
+    let attachmentCount: Int
     let receivedAt: String
+    let isRead: Bool?
 }
 struct MailSnapshot: Codable {
-    var unreadCount = 0
     var items: [MailItem] = []
     var label: String?
     var status: String?
@@ -36,15 +37,19 @@ struct MailReadError: LocalizedError {
 
 // Mail automation runs in a separate process so a busy Mail app cannot freeze the UI.
 func runMailReader(action: String, choice: MailboxChoice? = nil) async throws -> Data {
-    let path = Bundle.main.url(forResource: "read-mail", withExtension: "js")!
     let selection = try choice.map { String(decoding: try JSONEncoder().encode($0), as: UTF8.self) } ?? "{}"
+    return try await runLocalAutomation(resource: "read-mail", arguments: [action, selection])
+}
+
+func runLocalAutomation(resource: String, arguments: [String]) async throws -> Data {
+    guard let path = Bundle.main.url(forResource: resource, withExtension: "js") else { throw URLError(.fileDoesNotExist) }
     return try await withCheckedThrowingContinuation { continuation in
         DispatchQueue.global(qos: .utility).async {
             let process = Process()
             let output = Pipe()
             let errors = Pipe()
             process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-            process.arguments = ["-l", "JavaScript", path.path, action, selection]
+            process.arguments = ["-l", "JavaScript", path.path] + arguments
             process.standardOutput = output
             process.standardError = errors
             do {
@@ -85,7 +90,9 @@ func runMailReader(action: String, choice: MailboxChoice? = nil) async throws ->
         guard !busy else { return }
         busy = true; status = "Connecting to Apple Mail…"
         Task {
-            defer { busy = false }
+            defer {
+                busy = false
+            }
             do {
                 choices = try JSONDecoder().decode([MailboxChoice].self, from: await runMailReader(action: "mailboxes"))
                 if !choices.contains(where: { $0.id == selectedID }) { selectedID = "" }
@@ -117,7 +124,9 @@ func runMailReader(action: String, choice: MailboxChoice? = nil) async throws ->
         lastAttempt = Date(); busy = true
         let current = generation
         Task {
-            defer { busy = false }
+            defer {
+                busy = false
+            }
             do {
                 var result = try JSONDecoder().decode(MailSnapshot.self, from: await runMailReader(action: "read", choice: choice))
                 guard enabled && current == generation else { return }
@@ -133,6 +142,10 @@ func runMailReader(action: String, choice: MailboxChoice? = nil) async throws ->
             onChange?()
         }
     }
+    func openMailApp() {
+        guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.mail") else { return }
+        NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+    }
     func openMessage(id: String) {
         guard let item = snapshot.items.first(where: { $0.id == id }), !item.messageID.isEmpty else { return }
         let raw = item.messageID.trimmingCharacters(in: CharacterSet(charactersIn: "<>"))
@@ -147,7 +160,7 @@ struct MailSettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Apple Mail").font(.headline)
-            Text("Show unread mail locally. macOS will ask to allow access to Mail. No messages are sent or changed by refreshing.")
+            Text("Show today’s mail locally. macOS will ask to allow access to Mail. No messages are sent or changed by refreshing.")
                 .font(.caption).foregroundStyle(.secondary)
             HStack {
                 Button(mail.busy ? "Working…" : "Connect / reload mailboxes") { mail.connect() }.disabled(mail.busy)

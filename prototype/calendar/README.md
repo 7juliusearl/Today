@@ -27,7 +27,8 @@ open "build/Today Calendar Prototype.app"
    allowing Apple Calendar to sync. Refresh reads the local store; it does not
    force a Google sync.
 
-The app refreshes every five minutes while running, when brought to the
+Refreshes update the existing page in place and preserve its scroll position and
+expanded event details. The app refreshes every five minutes while running, when brought to the
 foreground, and when Apple Calendar reports changes. After the Mac wakes, it
 refreshes immediately and again after 15 seconds to allow syncing to resume.
 It opens directly to your saved dashboard when Calendar access is already granted.
@@ -45,8 +46,8 @@ normal dashboard files and existing scheduled tasks are not changed.
 
 ## Scope and limitations
 
-- Today, the next five dates with events within a 14-day lookahead, and up to ten
-  pending invitations when EventKit exposes the user's response status.
+- Today, the next five dates with events within a 14-day lookahead, and up to 30
+  pending invitations over the next 90 days when EventKit exposes the user's response status.
 - Declined and canceled events are omitted. Recurring instances and overlapping
   multi-day events are included in their applicable dates.
 - Meeting links are detected in synced event URLs, locations, or notes. Google
@@ -115,9 +116,17 @@ Automation prompt, choose your work Inbox, and click **Use mailbox**. Connection
 and disconnection apply immediately, independently of the calendar Save button.
 Mail may launch in the background when queried; it must have your account set up.
 
-The Mail card shows the selected mailbox's total unread count and up to eight
-newest unread messages received within the past 14 days. It reads only sender,
-subject, timestamp, and message identifiers. Headers remain in memory; only the
+The Mail card shows all messages received today in the selected mailbox, including
+read and unread messages, newest first. Today runs from midnight to the next
+midnight in the Mac's local timezone. The card grows naturally with the page instead of clipping an inner scroll area.
+Compact message rows show sender, time, subject, attachment count, and read status.
+Unread messages have a subtle warm gradient outline and tint, a blue dot, an Unread label, and a bold sender; read messages
+have a muted Read label and lighter sender weight. Status reflects Apple Mail at
+the latest successful refresh. Clicking
+anywhere on a row opens the message directly in Mail.
+A subtle **Open Mail** link in the card header opens the full Apple Mail app even
+before a mailbox is connected. It reads only sender,
+subject, timestamp, attachment count, read status, and message identifiers. Headers remain in memory; only the
 chosen mailbox/account identifiers and enabled setting are saved. Refreshing
 never sends, deletes, or marks messages read. Clicking a header opens the message
 in Mail, where normal Mail read/unread behavior applies.
@@ -125,7 +134,7 @@ in Mail, where normal Mail read/unread behavior applies.
 Mail is checked on normal dashboard refreshes, with a one-minute cooldown to
 avoid repeated calls during calendar update bursts. The Refresh button bypasses
 that cooldown. A busy request is not duplicated. Failed reads retain the last
-successful result with an error and a last-update label. Disconnecting clears
+successful result with an error instead of claiming the data is current. Disconnecting clears
 message data and ignores any in-flight result. No Gmail API key is needed.
 
 Automation permission is broader than read-only. The bundled automation contains
@@ -142,3 +151,43 @@ build/mail-reader-tests
 
 These tests use a fake Mail scripting interface and do not read real email.
 Actual permission, mailbox enumeration, and opening messages require a live check.
+
+### Happening now
+
+Below the greeting, the dashboard shows timed calendar events currently in
+progress, with time remaining, an elapsed-time bar, and a Join meeting link when
+available. Concurrent events appear together. All-day, declined, canceled, and
+invalid-duration events are excluded. Start times are inclusive and end times
+exclusive. Events starting within the next hour appear alongside active events with a
+large right-aligned countdown: “Starting in” above the number and “minutes”
+below it. It counts down in actual whole minutes (60, 59 … 2, 1), rounding partial
+minutes up so zero never appears before the event starts. Once an
+event begins, the same display shows “Time left” and remaining minutes. At the start time the event moves
+to In progress. If only future events are highlighted, the heading reads
+“Happening soon.” Beyond the one-hour window, the next event is shown as a
+simple next-up line.
+The existing 15-second clock tick updates the section without fetching data or
+reloading the page.
+
+```sh
+xcrun swiftc -parse-as-library -module-cache-path build/swift-module-cache \
+  prototype/calendar/HappeningNowTests.swift -o build/happening-now-tests
+build/happening-now-tests
+```
+
+### Responding to pending invitations
+
+The pending list reads RSVP status from Apple Calendar over the next 90 days,
+showing up to 30 invitations and grouping recurring events by calendar item ID.
+The main upcoming-events list keeps its 14-day horizon. Past invitations are
+excluded. **Respond in Calendar** uses Calendar's scripting interface to reveal
+an event by its external identifier in the matching calendar. If it cannot find
+an exact match, it opens the event date and directs you to Calendar's Invitations
+inbox. macOS may request Automation permission for Calendar.
+
+Apple's public EventKit and Calendar scripting interfaces expose attendee response
+status as read-only. The dashboard does not send RSVPs. Use Calendar's Accept,
+Maybe, or Decline controls; the dashboard updates after Calendar syncs the response.
+This replaces the unreliable email-subject search; no Mail connection is needed
+for invitations. Live event reveal depends on the identifiers exposed by the
+calendar account and needs an interactive check.

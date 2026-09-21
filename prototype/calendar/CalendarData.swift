@@ -96,7 +96,14 @@ func calendarPayload(_ events: [EKEvent], now: Date, primary: String?) -> Calend
         if !items.isEmpty { days.append(.init(date: formatter.string(from: date), events: items)) }
         date = next
     }
-    let mapped = valid.map { mappedEvent($0, primary: primary) }
+    var seenSeries = Set<String>()
+    let pending = valid.filter { event in
+        guard event.endDate > now,
+              response(event.attendees?.first(where: { $0.isCurrentUser })) == "needsAction" else { return false }
+        // Present the nearest occurrence once for a repeating invitation.
+        let key = event.calendar.calendarIdentifier + "|" + event.calendarItemIdentifier
+        return seenSeries.insert(key).inserted
+    }.map { mappedEvent($0, primary: primary) }
     return .init(events: valid.filter { overlaps($0, today, tomorrow) }.map { mappedEvent($0, primary: primary) },
-                 upcoming: days, pendingInvites: Array(mapped.filter { $0.myResponseStatus == "needsAction" }.prefix(10)))
+                 upcoming: days, pendingInvites: Array(pending.prefix(30)))
 }
