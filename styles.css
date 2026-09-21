@@ -1391,3 +1391,23 @@ a.asana-task:hover { color: var(--accent); }
 .bento-verse .verse-mark { font-size: 48px; height: 30px; margin: 0; }
 .bento-verse .verse-text { font-size: clamp(22px, 2.4vw, 30px); line-height: 1.45; font-weight: 500; letter-spacing: -.4px; margin: 0; }
 .bento-verse .verse-version { margin: 10px 0 0; }
+
+.schedule-event { border-bottom: 1px solid var(--line); padding: 10px 0; }
+.schedule-event > .event { border-bottom: 0; }
+.schedule-event-ended { opacity: .18; transition: opacity .2s ease; }
+.schedule-event-ended:hover { opacity: .65; }
+.schedule-event-ended:focus-within, .schedule-event-ended:has(details[open]) { opacity: 1; }
+
+.schedule-asana {
+  margin: 24px 0;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+.schedule-asana:first-child { margin-top: 0; }
+.schedule-asana:last-child { margin-bottom: 0; }
+.schedule-asana .upcoming-day-date { margin: 0 0 14px; }
+.schedule-asana .asana-task { padding: 12px 0; }
+.schedule-asana .asana-task:last-child { border-bottom: 0; padding-bottom: 0; }
+.schedule-event:has(+ .schedule-asana) { border-bottom: 0; }

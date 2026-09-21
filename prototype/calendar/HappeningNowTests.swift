@@ -46,6 +46,16 @@ import JavaScriptCore
         """)
         context.setObject(source, forKeyedSubscript: "source" as NSString)
         context.evaluateScript("new Function(source)")
+        context.evaluateScript("""
+        eval(source.slice(source.indexOf('function scheduleEventEnded'), source.indexOf('function updateScheduleTime')));
+        check(scheduleEventEnded(ended, now), 'Fade at exact end time');
+        check(!scheduleEventEnded(active, now), 'Keep active events visible');
+        check(!scheduleEventEnded(next, now), 'Keep future events visible');
+        check(!scheduleEventEnded({...ended, allDay:true}, now), 'Keep all-day items visible');
+        check(!scheduleEventEnded({...ended, end:null}, now), 'Do not guess missing end times');
+        check(!scheduleEventEnded({...ended, end:'invalid'}, now), 'Do not fade invalid end times');
+        """)
+
         assert(errors.isEmpty, errors.joined(separator: "\n"))
         print("PASS: one-hour buffer, one-minute countdown steps, soon-to-active transition, overlapping meetings, start/end boundaries, exclusions, JavaScript syntax.")
     }

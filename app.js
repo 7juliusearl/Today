@@ -56,6 +56,7 @@ function renderGreetingAndClock() {
     const m = String(t.getMinutes()).padStart(2, "0");
     document.getElementById("clock").textContent = `${h}:${m} ${ampm}`;
     renderHappeningNow(t);
+    updateScheduleTime(t);
   }
   tick();
   clearInterval(greetingClockTimer);
@@ -242,6 +243,30 @@ function renderEventItem(ev, isNow) {
     </details>`;
 }
 
+function scheduleEventEnded(event, now) {
+  const end = Date.parse(event.end);
+  const start = Date.parse(event.start);
+  return !event.allDay && Number.isFinite(end) && Number.isFinite(start) && end >= start && end <= now.getTime();
+}
+
+function updateScheduleTime(now = new Date()) {
+  const list = document.getElementById("schedule-list");
+  if (!list) return;
+  const top = list.scrollTop;
+  const pageY = window.scrollY;
+  list.querySelectorAll(".schedule-event").forEach(row => {
+    const event = { start: row.dataset.start, end: row.dataset.end, allDay: row.dataset.allDay === "true" };
+    const ended = scheduleEventEnded(event, now);
+    row.querySelector(".event")?.classList.toggle("event-now", !ended && !event.allDay && Date.parse(event.start) <= now.getTime());
+    if (ended && !row.classList.contains("schedule-event-ended")) {
+      row.classList.add("schedule-event-ended");
+      list.append(row);
+    }
+  });
+  list.scrollTop = top;
+  if (window.scrollY !== pageY) window.scrollTo({ top: pageY, behavior: "instant" });
+}
+
 function renderSchedule() {
   const list = document.getElementById("schedule-list");
   const events = (DATA.calendar && DATA.calendar.events) || [];
@@ -259,22 +284,27 @@ function renderSchedule() {
     const start = new Date(ev.start);
     const end = ev.end ? new Date(ev.end) : null;
     const isNow = !ev.allDay && start <= now && (!end || end >= now);
-    return renderEventItem(ev, isNow);
+    return `<div class="schedule-event" data-start="${escapeHtml(ev.start || "")}" data-end="${escapeHtml(ev.end || "")}" data-all-day="${!!ev.allDay}">${renderEventItem(ev, isNow)}</div>`;
   }).join("");
   if (tasks.length) {
+    const section = document.createElement("section");
+    section.className = "schedule-asana";
+    section.setAttribute("aria-label", "Asana tasks due today");
     const heading = document.createElement("p");
     heading.className = "upcoming-day-date";
     heading.textContent = "Asana · Due today";
-    list.append(heading);
+    section.append(heading);
     for (const task of tasks) {
       const url = asanaDesktopLink(task.url);
       const row = document.createElement(url ? "a" : "p");
       row.className = "asana-task";
       row.textContent = task.title + (url ? " ↗" : "");
       if (url) { row.href = url; row.target = "_blank"; row.rel = "noopener"; }
-      list.append(row);
+      section.append(row);
     }
+    list.append(section);
   }
+  updateScheduleTime(now);
 }
 
 function formatDayHeading(dateStr) {
