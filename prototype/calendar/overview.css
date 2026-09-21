@@ -24,6 +24,14 @@
   .hero-rhythm-list { gap: 4px; }
   .hero-rhythm-title { font-size: 12px; }
   .page .happening-now { grid-column: 9 / 13; grid-row: 1; overflow: auto; }
+  .page:has(.has-countdown) { grid-template-rows: clamp(240px, 29vh, 310px) minmax(0, 1fr) 190px 48px; }
+  .page:has(.has-countdown) .hero { grid-column: 1 / 6; }
+  .page .happening-now.has-countdown { grid-column: 6 / 13; padding: 22px; }
+  .page .has-countdown .panel-head { padding-right: 0; margin-bottom: 12px; }
+  .page .has-countdown .now-event-soon .now-countdown { flex-basis: 40%; margin-top: -36px; gap: 6px; }
+  .page .has-countdown .now-event-soon .now-countdown-number { font-size: clamp(120px, 12vw, 190px); }
+  .page .has-countdown .now-event-soon h3 { font-size: clamp(18px, 1.8vw, 26px); }
+  .page .has-countdown .now-countdown-label, .page .has-countdown .now-countdown-unit { font-size: 11px; }
   .happening-now .panel-head { padding-right: 100px; margin-bottom: 10px; }
   .now-event-top { gap: 8px; }
   .now-countdown { flex-basis: 90px; gap: 3px; }

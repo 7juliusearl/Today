@@ -106,6 +106,7 @@ function renderHappeningNow(now = new Date()) {
   const events = [...(calendar.events || []), ...(calendar.upcoming || []).flatMap(day => day.events || [])];
   const unique = Array.from(new Map(events.map(ev => [`${ev.id || ev.title}|${ev.start}`, ev])).values());
   const { active, soon, next } = happeningNowState(unique, now);
+  container.closest(".happening-now")?.classList.toggle("has-countdown", soon.length > 0);
   document.getElementById("happening-now-title").textContent = !active.length && soon.length ? "Happening soon" : "Happening now";
   let markup;
   if (!active.length && !soon.length) {
@@ -126,7 +127,7 @@ function renderHappeningNow(now = new Date()) {
           join = `<a class="now-join" href="${escapeHtml(url.href)}" target="_blank" rel="noopener">Join meeting ↗</a>`;
         }
       } catch {}
-      return `<div class="now-event">
+      return `<div class="now-event${countdown ? " now-event-soon" : ""}">
         <div class="now-event-top"><div class="now-event-info">
           <p class="now-live"><span aria-hidden="true">${countdown ? "◷" : "●"}</span> ${countdown ? "Up next" : "In progress"}</p>
           <h3>${escapeHtml(ev.title)}</h3>
