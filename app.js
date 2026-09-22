@@ -1095,6 +1095,7 @@ window.refreshLocalDashboard = function () {
   document.querySelectorAll("details").forEach(el => { el.open = expanded.has(detailKey(el)); });
   panelScroll.forEach(([el, top]) => { el.scrollTop = top; });
   window.scrollTo({ left: x, top: y, behavior: "instant" });
+  window.dispatchEvent(new Event("today:updated"));
 };
 
 initThemeToggle();

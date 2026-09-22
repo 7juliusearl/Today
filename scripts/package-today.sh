@@ -4,12 +4,12 @@ REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 TODAY_ARCHS="arm64 x86_64" "$REPO_DIR/scripts/build-calendar-prototype.sh"
 TODAY_EXPORT=$(mktemp -d "$REPO_DIR/build/Today-Share-XXXXXX")
 TODAY_FOLDER="$TODAY_EXPORT/Today"
-mkdir -p "$TODAY_FOLDER/data" "$TODAY_FOLDER/examples"
+mkdir -p "$TODAY_FOLDER/data" "$TODAY_FOLDER/examples" "$TODAY_FOLDER/custom"
 cp -R "$REPO_DIR/build/Today.app" "$TODAY_FOLDER/Today.app"
 cp -R "$REPO_DIR/build/Today.app/Contents/Resources/dashboard" "$TODAY_FOLDER/dashboard"
 cp "$REPO_DIR/data/schedule.example.js" "$REPO_DIR/data/plan.example.js" "$TODAY_FOLDER/examples/"
 python3 - "$TODAY_FOLDER" <<'PY'
-import pathlib, plistlib, sys, re
+import pathlib, plistlib, sys, re, hashlib, json
 root = pathlib.Path(sys.argv[1])
 info = root / 'Today.app/Contents/Info.plist'
 p = plistlib.loads(info.read_bytes())
@@ -26,10 +26,17 @@ htmlpath.write_text(html)
 (root/'data/schedule.js').write_text('// Personal weekly rhythm. Ask Codex or Claude to customize this.\nwindow.WORK_SCHEDULE = null;\n')
 (root/'data/plan.js').write_text('// Personal goals or onboarding plan. Start from examples/plan.example.js.\nwindow.ONBOARDING_PLAN = null;\n')
 (root/'TODAY-PROJECT.txt').write_text('Today portable project — keep Today.app, dashboard, and data together.\n')
+(root/'custom/user.css').write_text('/* Personal style overrides. These are kept when Today updates. */\n')
+(root/'custom/user.js').write_text('// Personal behavior and shortcuts. This file is kept when Today updates.\n// Run changes once here; use window.addEventListener("today:updated", ...) after refreshes.\n')
+baseline = {'version': p['CFBundleShortVersionString'], 'build': int(p['CFBundleVersion']), 'dashboard': {str(f.relative_to(root/'dashboard')): hashlib.sha256(f.read_bytes()).hexdigest() for f in (root/'dashboard').rglob('*') if f.is_file() and f.name != '.DS_Store'}}
+(root/'.today-release.json').write_text(json.dumps(baseline, indent=2)+'\n')
 PY
 cp "$REPO_DIR/prototype/calendar/portable/START-HERE.md" "$TODAY_FOLDER/START-HERE.md"
 cp "$REPO_DIR/prototype/calendar/portable/AGENTS.md" "$TODAY_FOLDER/AGENTS.md"
 cp "$REPO_DIR/prototype/calendar/portable/AGENTS.md" "$TODAY_FOLDER/CLAUDE.md"
+cp "$REPO_DIR/prototype/calendar/portable/UPDATES.md" "$TODAY_FOLDER/UPDATES.md"
+cp "$REPO_DIR/prototype/calendar/portable/Update Existing Today.command" "$TODAY_FOLDER/Update Existing Today.command"
+chmod +x "$TODAY_FOLDER/Update Existing Today.command"
 codesign --force --deep --sign "${TODAY_SIGNING_IDENTITY:--}" "$TODAY_FOLDER/Today.app"
 codesign --verify --deep --strict "$TODAY_FOLDER/Today.app"
 ditto -c -k --keepParent "$TODAY_FOLDER" "$TODAY_EXPORT/Today.zip"

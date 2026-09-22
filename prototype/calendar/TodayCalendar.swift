@@ -183,7 +183,7 @@ struct DashboardWebView: NSViewRepresentable {
                 started = true
                 view.configuration.userContentController.addUserScript(WKUserScript(source: script, injectionTime: .atDocumentStart, forMainFrameOnly: true))
                 let root = TodayPaths.dashboard
-                view.loadFileURL(root.appendingPathComponent("index.html"), allowingReadAccessTo: root)
+                view.loadFileURL(root.appendingPathComponent("index.html"), allowingReadAccessTo: root.deletingLastPathComponent())
                 return
             }
             pendingScript = script
@@ -242,6 +242,8 @@ struct CalendarSettingsView: View {
         ScrollView {
         VStack(alignment: .leading, spacing: 18) {
             Text("Settings").font(.title2.weight(.semibold))
+            TodayUpdateSettings()
+            Divider()
             if let project = TodayPaths.project {
                 Button("Open customization folder") { NSWorkspace.shared.open(project) }
                 Text("Open this folder in Codex or Claude to customize Today. Restart Today after layout edits; schedule and plan edits appear on refresh.")
@@ -422,9 +424,11 @@ struct DashboardWindowLevel: NSViewRepresentable {
 }
 
 struct PrototypeView: View {
+    @ObservedObject private var updater = TodayUpdater.shared
     @StateObject var model = CalendarModel()
     @StateObject private var space = WindowSpaceController()
     @State private var settingsPresented = false
+    @State private var windowControlPresented = false
     @AppStorage("alwaysOnTop") private var alwaysOnTop = false
     let timer = Timer.publish(every: 300, on: .main, in: .common).autoconnect()
     var body: some View {
@@ -440,12 +444,21 @@ struct PrototypeView: View {
         .navigationTitle("Today")
         .toolbar {
             ToolbarItem {
+                if updater.available != nil {
+                    Button { settingsPresented = true } label: { Label("Update available", systemImage: "arrow.down.circle.fill") }
+                    .help("A new version of Today is available")
+                }
+            }
+            ToolbarItem {
                 Menu {
                     Toggle("Reserve dashboard space", isOn: Binding(
                         get: { space.enabled },
                         set: { enabled in
                             space.enabled = enabled
-                            if enabled { alwaysOnTop = true }
+                            if enabled {
+                                space.refreshPermission()
+                                if !space.trusted { windowControlPresented = true }
+                            }
                         }
                     ))
                     Text("Fits enlarged windows into the largest space beside Today.")
@@ -453,10 +466,9 @@ struct PrototypeView: View {
                         Text("Paused — turn on Always on top to resume.")
                     }
                     if !space.trusted {
-                        Text("Not active — macOS permission is missing.")
-                        Button("Allow window control…") { space.requestAccess() }
-                        Button("Show this copy of Today in Finder") {
-                            NSWorkspace.shared.activateFileViewerSelecting([Bundle.main.bundleURL])
+                        Button("Set up window control…") {
+                            space.refreshPermission()
+                            windowControlPresented = true
                         }
                     }
                     if !space.status.isEmpty { Text(space.status) }
@@ -480,11 +492,16 @@ struct PrototypeView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("TodayOpenSettings"))) { _ in settingsPresented = true }
         .sheet(isPresented: $settingsPresented) { CalendarSettingsView(model: model, login: model.login) }
+        .sheet(isPresented: $windowControlPresented) { WindowControlSetupView(space: space) }
         .onAppear {
+            updater.checkAutomatically()
             if TodayPaths.portable && TodayPaths.project == nil { TodayPaths.chooseProject() }
             if EKEventStore.authorizationStatus(for: .event) == .fullAccess { model.refresh() }
         }
-        .onReceive(timer) { _ in if EKEventStore.authorizationStatus(for: .event) == .fullAccess && !settingsPresented { model.refresh() } }
+        .onReceive(timer) { _ in
+            updater.checkAutomatically()
+            if EKEventStore.authorizationStatus(for: .event) == .fullAccess && !settingsPresented { model.refresh() }
+        }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             space.refreshPermission()
             if EKEventStore.authorizationStatus(for: .event) == .fullAccess && !settingsPresented { model.refresh() }

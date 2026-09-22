@@ -305,3 +305,30 @@ launcher when a valid task URL is present. There is no separate Asana card.
 Selected Asana events are excluded from the meeting lists. Calendar subscriptions
 are one-way and may update slowly; no live completion status, undated tasks, or
 write-back is claimed. Each coworker connects their own subscription locally.
+
+### Portable updates
+
+TodayUpdater.swift adds Settings → Updates, signed feed checks at launch/every
+six hours, and user-initiated installation. TodayUpdateHelper waits for the old
+app to exit, builds a replacement beside the project, and retains the original
+folder under Today Backups. UpdateSupport.swift verifies Ed25519 signatures,
+ZIP checksums, portable identity, app signatures, release metadata, and dashboard
+baselines. V1 uses its bundled dashboard as the baseline. Conflicts stop an update.
+
+Personal data and custom/user.css + custom/user.js survive; the web view loads
+custom files after the standard assets. Refresh dispatches today:updated for
+idempotent custom behavior. See portable/UPDATES.md and scripts/RELEASING.md.
+The private release key is ignored by Git and excluded from every package.
+
+Validation:
+
+```sh
+xcrun swiftc -parse-as-library -module-cache-path build/swift-module-cache prototype/calendar/UpdateSupport.swift prototype/calendar/UpdateTests.swift -o build/update-tests
+build/update-tests
+xcrun swiftc -parse-as-library -module-cache-path build/swift-module-cache prototype/calendar/UpdateSupport.swift prototype/calendar/UpdatePackageTests.swift -o build/update-package-tests
+build/update-package-tests /path/to/new/Today.zip /path/to/old/Today
+```
+
+Package tests work on disposable copies and never launch a coworker's app or
+change privacy settings. Apple launch/permission approval remains separate from
+the release signature; updates do not remove quarantine or bypass Gatekeeper.

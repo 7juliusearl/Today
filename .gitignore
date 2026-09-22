@@ -15,3 +15,6 @@ data/.refresh-requested
 
 # Local native calendar prototype build output
 build/
+
+# Private update-publishing key. Back up separately; never distribute or commit.
+.today-release-signing/

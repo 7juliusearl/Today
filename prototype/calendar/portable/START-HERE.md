@@ -17,7 +17,8 @@ Try: “Help me personalize Today. Ask about my weekly schedule and links, then 
 
 Or: “Make my calendar wider and hide the verse.”
 
-- dashboard/: editable HTML, JavaScript, colors, and layout.
+- custom/user.css and custom/user.js: your personal styles, layout overrides, and shortcuts; preserved during updates.
+- dashboard/: standard app files. Direct edits here require a manual merge before an update can install.
 - data/schedule.js: your personal weekly rhythm; starts blank.
 - data/plan.js: your personal goals/onboarding plan; starts blank.
 - examples/: generic examples for the AI to adapt, not your real data.
@@ -27,5 +28,7 @@ Restart Today after changing dashboard files. Schedule and plan edits appear whe
 Calendar/Mail contents are read into memory, not exported into this project. Name, calendar/mailbox selection, permissions, and setup completion belong to your macOS user account. Copying this pristine folder to another Mac does not copy those settings. Weather and the daily verse require internet; the dashboard also uses optional online fonts and shortcut icons.
 
 Keep a backup of your customized folder before applying updates. Do not send a personalized folder to another coworker; use the original blank archive.
+
+Read UPDATES.md for built-in updates and the one-time installer for older Today folders. Settings → Updates accepts the publisher's shared link to latest.json.
 
 This is a locally signed build, without an Apple Developer account or Apple notarization. First-launch approval and managed-device restrictions remain controlled by macOS.
