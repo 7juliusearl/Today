@@ -363,8 +363,8 @@ function renderPendingInvites() {
       action.className = "invite-mail-action";
       action.type = "button";
       const statusText = DATA.calendarActions?.[ev.id];
-      action.textContent = "Respond in Calendar ↗";
-      action.disabled = statusText === "Opening Calendar…";
+      action.textContent = window.TODAY_COMPANION ? "Respond on your Mac" : "Respond in Calendar ↗";
+      action.disabled = window.TODAY_COMPANION || statusText === "Opening Calendar…";
       action.addEventListener("click", () => window.webkit.messageHandlers.respondInCalendar.postMessage(ev.id));
       row.append(title, meta, action);
       if (statusText) {
@@ -502,9 +502,91 @@ function focusRemaining(state, now = Date.now()) {
   return state.mode === "running" ? Math.max(0, state.deadline - now) : state.remaining;
 }
 
+function initFocusSections() {
+  const sections = [
+    ["welcome", "Welcome, weather & rhythm", ".hero"],
+    ["now", "Happening now", ".happening-now"],
+    ["schedule", "Today’s schedule", ".bento-schedule"],
+    ["mail", "Mail", ".bento-mail"],
+    ["upcoming", "Coming up", ".bento-comingup"],
+    ["invites", "Pending invitations", ".bento-invites"],
+    ["plan", "Learn & Observe / personal plan", ".bento-plan"],
+    ["verse", "Verse of the day", ".bento-verse"],
+    ["links", "Quick links", ".quicklinks"],
+  ];
+  let selected = new Set(sections.map(([id]) => id));
+  try {
+    const saved = JSON.parse(localStorage.getItem("today-focus-sections"));
+    if (Array.isArray(saved)) selected = new Set(saved.filter(id => sections.some(section => section[0] === id)));
+  } catch {}
+  const dialog = document.getElementById("focus-settings-dialog");
+  const options = document.getElementById("focus-section-options");
+  const inputs = new Map();
+  const tallMail = document.getElementById("focus-tall-mail");
+  try { tallMail.checked = localStorage.getItem("today-focus-tall-mail") !== "false"; } catch {}
+  tallMail.addEventListener("change", () => {
+    try { localStorage.setItem("today-focus-tall-mail", String(tallMail.checked)); } catch {}
+    apply();
+  });
+  function apply() {
+    const active = document.body.classList.contains("focus-mode");
+    const customized = sections.some(([id]) => !selected.has(id));
+    const mailCard = document.querySelector(".bento-mail");
+    const mailColumn = active && tallMail.checked && selected.has("mail") && mailCard && !mailCard.hidden;
+    document.body.classList.toggle("focus-filtered", active && (customized || mailColumn));
+    document.body.classList.toggle("focus-mail-column", !!mailColumn);
+    const leftCards = [];
+    let count = 0;
+    for (const [id, , selector] of sections) {
+      const card = document.querySelector(selector);
+      if (!card) continue;
+      card.classList.toggle("focus-section-hidden", active && !selected.has(id));
+      if (selected.has(id) && !card.hidden) {
+        count++;
+        if (id !== "mail") leftCards.push(card);
+      }
+    }
+    const columns = Math.max(1, Math.min(3, count));
+    const page = document.querySelector(".page");
+    page.style.setProperty("--focus-mail-rows", Math.max(1, Math.ceil(leftCards.length / 2)));
+    leftCards.forEach((card, index) => {
+      card.style.setProperty("--focus-mail-row", Math.floor(index / 2) + 2);
+      card.style.setProperty("--focus-mail-column", index === leftCards.length - 1 && index % 2 === 0 ? "1 / 3" : String(index % 2 + 1));
+    });
+    document.body.classList.toggle("focus-mail-solo", !!mailColumn && leftCards.length === 0);
+    page.style.setProperty("--focus-columns", columns);
+    page.style.setProperty("--focus-rows", Math.max(1, Math.ceil(count / columns)));
+    document.body.classList.toggle("focus-timer-only", active && customized && count === 0);
+  }
+  function save() {
+    try { localStorage.setItem("today-focus-sections", JSON.stringify([...selected])); } catch {}
+    apply();
+  }
+  for (const [id, title, selector] of sections) {
+    if (!document.querySelector(selector)) continue;
+    const label = document.createElement("label");
+    const input = document.createElement("input");
+    input.type = "checkbox"; input.checked = selected.has(id); input.value = id;
+    input.addEventListener("change", () => { input.checked ? selected.add(id) : selected.delete(id); save(); });
+    label.append(input, document.createTextNode(title)); options.append(label); inputs.set(id, input);
+  }
+  document.getElementById("focus-settings").addEventListener("click", () => dialog.showModal());
+  for (const id of ["focus-settings-close", "focus-settings-done"]) document.getElementById(id).addEventListener("click", () => dialog.close());
+  document.getElementById("focus-show-all").addEventListener("click", () => {
+    selected = new Set(sections.map(([id]) => id)); inputs.forEach(input => { input.checked = true; }); save();
+  });
+  dialog.addEventListener("click", event => {
+    const box = dialog.getBoundingClientRect();
+    if (event.target === dialog && (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom)) dialog.close();
+  });
+  window.addEventListener("today:updated", apply);
+  return apply;
+}
+
 function initFocusTimer() {
   const card = document.getElementById("focus-timer");
   if (!card) return;
+  const applySections = initFocusSections();
   const form = document.getElementById("focus-form");
   const session = document.getElementById("focus-session");
   const status = document.getElementById("focus-status");
@@ -524,6 +606,7 @@ function initFocusTimer() {
     }
     const active = state.mode === "running" || state.mode === "paused";
     document.body.classList.toggle("focus-mode", active);
+    applySections();
     card.classList.toggle("focus-complete", state.mode === "done");
     form.hidden = state.mode !== "idle";
     session.hidden = state.mode === "idle";
@@ -725,7 +808,7 @@ function renderMail() {
     const row = document.createElement("button");
     row.className = "mail-item";
     row.type = "button";
-    row.disabled = !item.messageID;
+    row.disabled = window.TODAY_COMPANION || !item.messageID;
     row.title = item.sender;
     row.addEventListener("click", () => window.webkit.messageHandlers.mailOpen.postMessage(item.id));
     const sender = document.createElement("span");

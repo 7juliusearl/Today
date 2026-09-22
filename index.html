@@ -125,7 +125,7 @@
     </div>
 
     <section class="glass-card bento-workschedule bento-focus" id="focus-timer" aria-labelledby="focus-title">
-      <div class="panel-head"><p class="eyebrow">Make time for what matters</p><h2 class="panel-title" id="focus-title">Focus timer</h2></div>
+      <div class="panel-head focus-header"><div><p class="eyebrow">Make time for what matters</p><h2 class="panel-title" id="focus-title">Focus timer</h2></div><button id="focus-settings" type="button" aria-label="Timer settings" title="Timer settings" aria-haspopup="dialog" aria-controls="focus-settings-dialog">⚙</button></div>
       <form id="focus-form" class="focus-form">
         <label>Hours<input id="focus-hours" type="number" min="0" max="23" step="1" value="0" required></label>
         <span aria-hidden="true">:</span>
@@ -206,6 +206,11 @@
 
 </main>
 
+<dialog class="rhythm-week-dialog" id="focus-settings-dialog" aria-labelledby="focus-settings-title">
+  <div class="rhythm-week-header"><div><p class="eyebrow">Timer settings</p><h2 id="focus-settings-title">Only show</h2></div><button class="rhythm-week-close" id="focus-settings-close" type="button" aria-label="Close timer settings">×</button></div>
+  <div class="rhythm-week-body"><p class="focus-settings-help">Choose what stays visible while your timer runs or is paused. The timer always stays visible. Your full dashboard returns when the session ends.</p><label class="focus-mail-option"><input type="checkbox" id="focus-tall-mail" checked> Tall Mail column</label><p class="focus-settings-help">On wide screens, keep Mail full height beside the timer and other selected sections.</p><div id="focus-section-options"></div><p class="focus-settings-help">Saved on this device. Sections without data may stay hidden.</p></div>
+  <div class="focus-settings-footer"><button type="button" id="focus-show-all">Show all</button><button type="button" id="focus-settings-done">Done</button></div>
+</dialog>
 <dialog class="rhythm-week-dialog" id="rhythm-week-dialog" aria-labelledby="rhythm-week-title">
   <div class="rhythm-week-header">
     <div><p class="eyebrow">Your weekly rhythm</p><h2 id="rhythm-week-title">The full week</h2></div>

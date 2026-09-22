@@ -32,3 +32,20 @@ Keep a backup of your customized folder before applying updates. Do not send a p
 Read UPDATES.md for built-in updates and the one-time installer for older Today folders. Settings → Updates accepts the publisher's shared link to latest.json.
 
 This is a locally signed build, without an Apple Developer account or Apple notarization. First-launch approval and managed-device restrictions remain controlled by macOS.
+
+
+## iPad companion (Today 0.3)
+
+In Today on your Mac, open **Settings → iPad sharing → Start sharing**. Keep both devices on the same trusted Wi-Fi network. Scan the QR code using the iPad Camera and tap **Connect this iPad**. In Safari, choose **Share → Add to Home Screen → Open as Web App**.
+
+- Sharing is off by default and does not restart automatically when Today reopens.
+- The Mac must stay awake with Today open. The iPad polls the latest Mac snapshot every 15 seconds; the Mac’s existing Calendar/Mail refresh timing still applies. Refresh on the iPad fetches the latest available snapshot, not a new Mail sync.
+- Calendar, Mail summaries, Asana tasks, weekly rhythm, weather, and plans come from your Mac. The focus timer runs independently on the iPad, catches up after sleep, and does not send background alarm notifications.
+- Respond to invitations and open individual email messages on your Mac. The companion cannot remotely operate Mac apps. Web shortcuts open on the iPad. Native custom scripts are not loaded by the companion.
+- This is a local HTTP connection, **not encrypted**. Use only a trusted private network; do not forward port 8787 to the internet. Anyone with the pairing link has read access while sharing runs.
+- **Stop Sharing** invalidates all pairing links and sessions. Restarting sharing produces a new link. Data already displayed on an iPad may remain visible as an offline snapshot until closed or a revocation response is received.
+- If a connection fails, check macOS Local Network permission and firewall access for Today. Office/guest Wi-Fi may block communication between devices. If the Mac’s network address changes, restart sharing and pair again; an existing Home Screen shortcut may need replacing.
+
+The companion serves only explicitly listed UI files and an authenticated runtime snapshot; it does not expose the project folder or provide a remote-command endpoint. It is a first local companion version, not an independent iPad app or an internet-hosted service.
+
+To load updated iPad UI during an active connection, tap **Update dashboard** at the top of the iPad page. If Today has restarted on the Mac, start sharing again and scan the new QR code first. Reloading keeps the timer and display preferences saved on that iPad.

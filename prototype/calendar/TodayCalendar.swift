@@ -10,6 +10,7 @@ import ServiceManagement
     let extras = DashboardExtras()
     let login = LoginSettings()
     let mail = MailModel()
+    let companion = CompanionServer()
     private var pendingInvitations: [String: EKEvent] = [:]
     private var calendarActions: [String: String] = [:]
     private var automaticRefresh: AutoRefreshController?
@@ -19,7 +20,7 @@ import ServiceManagement
     @Published var primary: String = UserDefaults.standard.string(forKey: "primaryCalendar") ?? ""
     @Published var asanaCalendar = UserDefaults.standard.string(forKey: "asanaCalendar") ?? ""
     @Published var message = "Connect to the calendars already synced with Apple Calendar."
-    @Published var script = ""
+    @Published var script = "" { didSet { companion.snapshot = script } }
     @Published var revision = 0
     @Published var connected = false
     @Published var requesting = false
@@ -242,6 +243,8 @@ struct CalendarSettingsView: View {
         ScrollView {
         VStack(alignment: .leading, spacing: 18) {
             Text("Settings").font(.title2.weight(.semibold))
+            CompanionSettingsView(server: model.companion)
+            Divider()
             TodayUpdateSettings()
             Divider()
             if let project = TodayPaths.project {

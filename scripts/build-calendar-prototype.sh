@@ -20,6 +20,7 @@ xcrun swiftc -parse-as-library -target "$today_arch-apple-macosx14.0" \
   "$REPO_DIR/prototype/calendar/UpdateSupport.swift" \
   "$REPO_DIR/prototype/calendar/TodayUpdater.swift" \
   "$REPO_DIR/prototype/calendar/IntroView.swift" \
+  "$REPO_DIR/prototype/calendar/Companion.swift" \
   "$REPO_DIR/prototype/calendar/TodayCalendar.swift" \
   -o "$REPO_DIR/build/TodayCalendar-$today_arch"
 xcrun swiftc -parse-as-library -target "$today_arch-apple-macosx14.0" \
@@ -34,6 +35,7 @@ xcrun lipo -create "${today_binaries[@]}" -output "$APP_DIR/Contents/MacOS/Today
 today_helpers=()
 for today_arch in ${TODAY_ARCHS:-$(uname -m)}; do today_helpers+=("$REPO_DIR/build/TodayUpdateHelper-$today_arch"); done
 xcrun lipo -create "${today_helpers[@]}" -output "$APP_DIR/Contents/MacOS/TodayUpdateHelper"
+cp "$REPO_DIR/prototype/calendar/companion/"* "$APP_DIR/Contents/Resources/"
 cp "$REPO_DIR/app.js" "$REPO_DIR/styles.css" "$APP_DIR/Contents/Resources/dashboard/"
 cp "$REPO_DIR/prototype/calendar/overview.css" "$APP_DIR/Contents/Resources/dashboard/"
 cp "$REPO_DIR/icons/"*.png "$APP_DIR/Contents/Resources/dashboard/icons/"
@@ -101,6 +103,7 @@ cat > "$APP_DIR/Contents/Info.plist" <<'PLIST'
 <key>CFBundleIconFile</key><string>Today.icns</string>
 <key>LSMinimumSystemVersion</key><string>14.0</string>
 <key>NSAppleEventsUsageDescription</key><string>Read today’s message headers from the mailbox you choose in Apple Mail and open messages when you click them. Also reveal selected invitations in Calendar so you can respond there. Today does not submit responses or change messages.</string>
+<key>NSLocalNetworkUsageDescription</key><string>Share your Today dashboard with an iPad on your local network when you enable companion sharing.</string>
 <key>NSLocationWhenInUseUsageDescription</key><string>Show local weather in Today. Only approximate coordinates are sent to the weather service.</string>
 <key>NSLocationUsageDescription</key><string>Show local weather in Today using your approximate location.</string>
 <key>NSCalendarsFullAccessUsageDescription</key><string>Show events from calendars you select in your local Today dashboard. This prototype only reads events and does not upload them.</string>
