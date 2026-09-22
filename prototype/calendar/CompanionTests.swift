@@ -9,6 +9,8 @@ import Foundation
         for file in ["app.js", "styles.css", "overview.css", "companion.js", "companion.css", "manifest.json"] {
             try "fixture".write(to: root.appendingPathComponent(file), atomically: true, encoding: .utf8)
         }
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("icons"), withIntermediateDirectories: true)
+        try Data([137, 80, 78, 71]).write(to: root.appendingPathComponent("icons/icon-180.png"))
         let server = CompanionServer(dashboardRoot: root, resourceRoot: root)
         server.snapshot = "window.DASHBOARD_DATA = {fixture:true};"
         server.start()
@@ -21,7 +23,10 @@ import Foundation
         }
         func check(_ ok: Bool, _ name: String) { precondition(ok, name) }
         let cookie = "today_companion=" + secret
-        check(request("/").contains("Connect to Today"), "Pairing shell")
+        check(request("/").contains("<title>Today</title>"), "Pairing shell")
+        check(request("/icons/icon-180.png").hasPrefix("HTTP/1.1 200"), "Home Screen artwork available without cookie")
+        check(request("/manifest.json").hasPrefix("HTTP/1.1 200"), "Public manifest")
+        check(request("/app.js").hasPrefix("HTTP/1.1 401"), "Non-public assets still require pairing")
         check(request("/snapshot").hasPrefix("HTTP/1.1 401"), "No unauthenticated data")
         check(request("/dashboard").hasPrefix("HTTP/1.1 401"), "No unauthenticated dashboard")
         check(request("/pair", method: "POST", origin: "http://" + host, body: "wrong").hasPrefix("HTTP/1.1 403"), "Reject wrong token")

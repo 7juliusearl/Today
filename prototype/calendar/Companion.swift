@@ -33,7 +33,7 @@ import CoreImage.CIFilterBuiltins
             page = page.replacingOccurrences(of: "</head>", with: "<link rel=\"manifest\" href=\"manifest.json\"><link rel=\"stylesheet\" href=\"companion.css\"><meta name=\"referrer\" content=\"no-referrer\"></head>")
             html = Data(page.utf8)
             assets = [:]
-            for file in ["app.js", "styles.css", "overview.css", "icons/icon-192.png", "icons/icon-512.png"] {
+            for file in ["app.js", "styles.css", "overview.css", "icons/icon-16.png", "icons/icon-32.png", "icons/icon-180.png", "icons/icon-192.png", "icons/icon-512.png"] {
                 let url = root.appendingPathComponent(file)
                 guard !((try? url.resourceValues(forKeys: [.isSymbolicLinkKey]).isSymbolicLink) ?? false) else { continue }
                 assets["/" + file] = try? Data(contentsOf: url)
@@ -134,6 +134,12 @@ import CoreImage.CIFilterBuiltins
             if authorized { return reply(302, extra: "Location: /dashboard\r\n") }
             return reply(200, Data(Self.pairPage.utf8), type: "text/html")
         }
+        // Home Screen icon fetches may not carry Safari's pairing cookie.
+        // Only public app artwork/manifest bypass authentication; dashboard data never does.
+        let publicAssets: Set<String> = ["/icons/icon-16.png", "/icons/icon-32.png", "/icons/icon-180.png", "/icons/icon-192.png", "/icons/icon-512.png", "/manifest.json"]
+        if publicAssets.contains(path), let asset = assets[path] {
+            return reply(200, asset, type: path.hasSuffix(".png") ? "image/png" : "application/manifest+json")
+        }
         guard authorized else { return reply(401) }
         if path == "/dashboard" { return reply(200, html, type: "text/html") }
         if path == "/snapshot" {
@@ -145,7 +151,7 @@ import CoreImage.CIFilterBuiltins
         return reply(200, asset, type: type)
     }
     private static let pairPage = """
-    <!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>Connect to Today</title>
+    <!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>Today</title><meta name="apple-mobile-web-app-title" content="Today"><link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180.png"><link rel="icon" href="/icons/icon-32.png"><link rel="manifest" href="/manifest.json">
     <style>body{background:#191919;color:#f4f0e8;font:20px system-ui;max-width:500px;margin:15vh auto;padding:24px}h1{font-size:44px}button{background:#ff7446;color:#191919;border:0;border-radius:12px;padding:16px;font:inherit}</style>
     <h1>Your day, beside you.</h1><p id="status">Scan the QR code in Today’s Mac settings to connect this iPad.</p><button id="pair" hidden>Connect this iPad</button>
     <script>const secret=location.hash.slice(1);history.replaceState(null,'','/');if(secret){const b=document.getElementById('pair');b.hidden=false;b.onclick=async()=>{b.disabled=true;try{const r=await fetch('/pair',{method:'POST',body:secret});if(!r.ok)throw Error();location.replace('/dashboard');}catch(e){document.getElementById('status').textContent='Pairing expired or your Mac is unavailable. Scan a new QR code from Today.';b.disabled=false;}};}</script>
