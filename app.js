@@ -424,25 +424,12 @@ function todaysWorkSchedule() {
 }
 
 function renderWorkSchedule() {
-  const list = document.getElementById("workschedule-list");
   const fullBody = document.getElementById("workschedule-full-body");
-  const { schedule, todayName, today } = todaysWorkSchedule();
-
+  const { schedule } = todaysWorkSchedule();
+  if (!fullBody) return;
   if (!schedule) {
-    list.innerHTML = `<p class="empty-state">No work schedule set up yet.</p>`;
-    fullBody.innerHTML = "";
-    document.getElementById("workschedule-eyebrow").textContent = "Work Schedule";
+    fullBody.innerHTML = '<p class="empty-state">No work schedule set up yet.</p>';
     return;
-  }
-
-  document.getElementById("workschedule-eyebrow").textContent = `Work Schedule · ${todayName}`;
-
-  if (!today || (today.items.length === 0 && !today.note)) {
-    list.innerHTML = `<p class="empty-state">Nothing set for today.</p>`;
-  } else if (today.items.length === 0) {
-    list.innerHTML = `<p class="empty-state">${escapeHtml(today.note)}</p>`;
-  } else {
-    list.innerHTML = today.items.map(renderWorkScheduleItem).join("");
   }
 
   fullBody.innerHTML = schedule.week.map((d) => `
@@ -470,29 +457,118 @@ function renderHeroRhythm() {
   const list = document.getElementById("hero-rhythm-list");
   const { schedule, todayName, today } = todaysWorkSchedule();
 
-  if (!schedule || !today) {
+  if (!schedule) {
     widget.hidden = true;
     return;
   }
 
   document.getElementById("hero-rhythm-eyebrow").textContent = `${todayName}’s Rhythm`;
 
-  if (today.items.length > 0) {
+  if (today?.items?.length > 0) {
     list.innerHTML = today.items.slice(0, 3).map((item) => `
       <div class="hero-rhythm-item">
         <span class="hero-rhythm-time">${escapeHtml(item.time)}</span>
         <span class="hero-rhythm-title">${escapeHtml(item.title)}</span>
       </div>`).join("");
-  } else if (today.short || today.note) {
+  } else if (today?.short || today?.note) {
     list.innerHTML = `<div class="hero-rhythm-item hero-rhythm-item-solo">
       <span class="hero-rhythm-title">${escapeHtml(today.short || today.note)}</span>
     </div>`;
   } else {
-    widget.hidden = true;
-    return;
+    list.innerHTML = '<span class="hero-rhythm-title">No regular plans today.</span>';
   }
 
   widget.hidden = false;
+}
+
+function initRhythmWeekDialog() {
+  const dialog = document.getElementById("rhythm-week-dialog");
+  const link = document.getElementById("hero-week-link");
+  if (!dialog || !link) return;
+  link.addEventListener("click", () => {
+    renderWorkSchedule();
+    const body = document.getElementById("rhythm-week-body");
+    if (!dialog.open) dialog.showModal();
+    body.scrollTop = 0;
+  });
+  document.getElementById("rhythm-week-close").addEventListener("click", () => dialog.close());
+  dialog.addEventListener("click", event => {
+    const bounds = dialog.getBoundingClientRect();
+    if (event.target === dialog && (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom)) dialog.close();
+  });
+}
+
+function focusRemaining(state, now = Date.now()) {
+  return state.mode === "running" ? Math.max(0, state.deadline - now) : state.remaining;
+}
+
+function initFocusTimer() {
+  const card = document.getElementById("focus-timer");
+  if (!card) return;
+  const form = document.getElementById("focus-form");
+  const session = document.getElementById("focus-session");
+  const status = document.getElementById("focus-status");
+  const pause = document.getElementById("focus-pause");
+  let validationMessage = "";
+  let state = { mode: "idle", total: 0, remaining: 0, deadline: 0 };
+  try {
+    const saved = JSON.parse(localStorage.getItem("today-focus-timer"));
+    if (saved && ["running", "paused", "done"].includes(saved.mode) && Number.isFinite(saved.total) && saved.total > 0 && saved.total <= 86400000 && Number.isFinite(saved.remaining) && saved.remaining >= 0 && saved.remaining <= saved.total && Number.isFinite(saved.deadline)) state = saved;
+  } catch {}
+  function save() { try { localStorage.setItem("today-focus-timer", JSON.stringify(state)); } catch {} }
+  function paint() {
+    let remaining = focusRemaining(state);
+    if (state.mode === "running" && remaining <= 0) {
+      state = { ...state, mode: "done", remaining: 0 };
+      save();
+    }
+    const active = state.mode === "running" || state.mode === "paused";
+    document.body.classList.toggle("focus-mode", active);
+    card.classList.toggle("focus-complete", state.mode === "done");
+    form.hidden = state.mode !== "idle";
+    session.hidden = state.mode === "idle";
+    pause.hidden = state.mode === "done";
+    pause.textContent = state.mode === "paused" ? "Resume" : "Pause";
+    const seconds = Math.ceil(remaining / 1000);
+    const pad = value => String(value).padStart(2, "0");
+    document.getElementById("focus-digits").innerHTML = `${Math.floor(seconds / 3600)}:${pad(Math.floor(seconds / 60) % 60)}<span class="focus-seconds">:${pad(seconds % 60)}</span>`;
+    const progress = state.total ? Math.min(100, Math.max(0, (1 - remaining / state.total) * 100)) : 0;
+    document.getElementById("focus-progress-fill").style.width = `${progress}%`;
+    document.getElementById("focus-progress").setAttribute("aria-valuenow", String(Math.round(progress)));
+    const message = state.mode === "done" ? "Time’s up. Take a breath—you’re done." : state.mode === "paused" ? "Paused. Resume when you’re ready." : state.mode === "running" ? "One thing at a time. You’ve got this." : validationMessage || "Choose a duration in hours and minutes.";
+    if (status.textContent !== message) status.textContent = message;
+  }
+  form.addEventListener("submit", event => {
+    event.preventDefault();
+    const hours = Number(document.getElementById("focus-hours").value);
+    const minutes = Number(document.getElementById("focus-minutes").value);
+    if (!Number.isInteger(hours) || hours < 0 || hours > 23 || !Number.isInteger(minutes) || minutes < 0 || minutes > 59 || hours + minutes === 0) {
+      validationMessage = "Enter a duration of at least one minute.";
+      status.textContent = validationMessage;
+      return;
+    }
+    validationMessage = "";
+    const total = (hours * 60 + minutes) * 60000;
+    state = { mode: "running", total, remaining: total, deadline: Date.now() + total };
+    save(); paint();
+    pause.focus({ preventScroll: true });
+    card.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  });
+  pause.addEventListener("click", () => {
+    if (state.mode === "running") {
+      const remaining = focusRemaining(state);
+      state = { ...state, mode: remaining ? "paused" : "done", remaining };
+    } else if (state.mode === "paused") state = { ...state, mode: "running", deadline: Date.now() + state.remaining };
+    save(); paint();
+  });
+  document.getElementById("focus-reset").addEventListener("click", () => {
+    state = { mode: "idle", total: 0, remaining: 0, deadline: 0 };
+    save(); paint();
+    document.getElementById("focus-hours").focus({ preventScroll: true });
+  });
+  setInterval(paint, 1000);
+  document.addEventListener("visibilitychange", paint);
+  paint();
 }
 
 function renderOnboardingPlan() {
@@ -1099,6 +1175,8 @@ window.refreshLocalDashboard = function () {
 };
 
 initThemeToggle();
+initRhythmWeekDialog();
+initFocusTimer();
 initRefreshButton();
 initAutoRefresh();
 renderGreetingAndClock();

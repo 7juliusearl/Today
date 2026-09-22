@@ -60,6 +60,7 @@
       <div class="hero-rhythm" id="hero-rhythm" hidden>
         <p class="eyebrow" id="hero-rhythm-eyebrow">Today&rsquo;s Rhythm</p>
         <div class="hero-rhythm-list" id="hero-rhythm-list"></div>
+        <button class="hero-week-link" id="hero-week-link" type="button" aria-haspopup="dialog" aria-controls="rhythm-week-dialog">See full week ↗</button>
       </div>
     </div>
   </header>
@@ -123,19 +124,21 @@
       <div class="panel-body" id="pending-invites-list"></div>
     </div>
 
-    <div class="glass-card bento-workschedule">
-      <div class="panel-head">
-        <p class="eyebrow" id="workschedule-eyebrow">Work Schedule</p>
-        <h2 class="panel-title" id="workschedule-title">Weekly Rhythm</h2>
+    <section class="glass-card bento-workschedule bento-focus" id="focus-timer" aria-labelledby="focus-title">
+      <div class="panel-head"><p class="eyebrow">Make time for what matters</p><h2 class="panel-title" id="focus-title">Focus timer</h2></div>
+      <form id="focus-form" class="focus-form">
+        <label>Hours<input id="focus-hours" type="number" min="0" max="23" step="1" value="0" required></label>
+        <span aria-hidden="true">:</span>
+        <label>Minutes<input id="focus-minutes" type="number" min="0" max="59" step="1" value="25" required></label>
+        <button type="submit" class="focus-primary">Start focus</button>
+      </form>
+      <div id="focus-session" hidden>
+        <div class="focus-digits" id="focus-digits" role="timer" aria-label="Time remaining">0:25<span class="focus-seconds">:00</span></div>
+        <div class="focus-progress" id="focus-progress" role="progressbar" aria-label="Focus session elapsed" aria-valuemin="0" aria-valuemax="100"><span id="focus-progress-fill"></span></div>
+        <div class="focus-actions"><button type="button" id="focus-pause">Pause</button><button type="button" id="focus-reset">Reset</button></div>
       </div>
-      <div class="panel-body" id="workschedule-list">
-        <p class="empty-state">Loading schedule&hellip;</p>
-      </div>
-      <details class="workschedule-full">
-        <summary class="workschedule-full-toggle">See full week</summary>
-        <div class="workschedule-full-body" id="workschedule-full-body"></div>
-      </details>
-    </div>
+      <p class="focus-status" id="focus-status" role="status"></p>
+    </section>
 
     <div class="glass-card bento-plan">
       <div class="panel-head">
@@ -202,6 +205,14 @@
   </footer>
 
 </main>
+
+<dialog class="rhythm-week-dialog" id="rhythm-week-dialog" aria-labelledby="rhythm-week-title">
+  <div class="rhythm-week-header">
+    <div><p class="eyebrow">Your weekly rhythm</p><h2 id="rhythm-week-title">The full week</h2></div>
+    <button class="rhythm-week-close" id="rhythm-week-close" type="button" aria-label="Close full week" autofocus>×</button>
+  </div>
+  <div class="rhythm-week-body" id="rhythm-week-body" tabindex="0" role="region" aria-label="Full weekly schedule"><div id="workschedule-full-body"></div></div>
+</dialog>
 
 <script src="data/dashboard.js?v=5"></script>
 <script src="data/schedule.js?v=1"></script>

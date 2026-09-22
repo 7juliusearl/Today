@@ -108,3 +108,28 @@
   .page .verse-body { flex: 1; }
   .page .verse-text { font-size: clamp(16px, 1.25vw, 21px); line-height: 1.4; }
 }
+
+@media (min-width: 1000px) and (min-height: 650px) {
+  .page .bento-focus { overflow: auto; }
+  .page .bento-focus .panel-head { margin-bottom: 8px; }
+  .page .focus-form input { font-size: 18px; width: 54px; padding: 6px; }
+  .page .focus-status { font-size: 10px; margin-top: 8px; }
+  .page .focus-digits { font-size: 52px; }
+  body.focus-mode .page { grid-template-rows: clamp(255px, 36vh, 370px) minmax(0, 1fr) 155px 48px; }
+  body.focus-mode .page .bento-focus { grid-column: 1 / 9; grid-row: 1; padding: 22px 28px; }
+  body.focus-mode .page .hero { grid-column: 9 / 13; grid-row: 1; padding: 18px; }
+  body.focus-mode .page .greeting { font-size: clamp(24px, 2.2vw, 34px); }
+  body.focus-mode .hero-body { flex-direction: column; align-items: stretch; gap: 14px; }
+  body.focus-mode .hero-rhythm { max-width: none; border-left: 0; padding-left: 0; }
+  body.focus-mode .hero-week-link { margin-top: 8px; }
+  body.focus-mode .page .happening-now { grid-column: 1 / 4; grid-row: 3; padding: 14px; }
+  body.focus-mode .page .happening-now .panel-head { padding-right: 70px; margin-bottom: 8px; }
+  body.focus-mode .page .happening-now .now-countdown { flex-basis: 70px; margin-top: -40px; gap: 3px; }
+  body.focus-mode .page .happening-now .now-countdown-number { font-size: 52px; }
+  body.focus-mode .page .happening-now .now-event h3 { font-size: 13px; }
+  body.focus-mode .page .happening-now .now-countdown-label, body.focus-mode .page .happening-now .now-countdown-unit { font-size: 8px; }
+  body.focus-mode .page .focus-digits { font-size: clamp(90px, min(12vw, calc(36vh - 175px)), 175px); }
+  body.focus-mode .page .focus-progress { margin: 12px 0; }
+  body.focus-mode .page .bento-focus .panel-title { font-size: 22px; }
+  body.focus-mode .page .bento-focus .focus-status { font-size: 12px; }
+}
