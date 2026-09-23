@@ -32,6 +32,7 @@ import ServiceManagement
     }
 
     init() {
+        if companion.resumeOnLaunch { companion.start() }
         automaticRefresh = AutoRefreshController { [weak self] in
             guard let self, self.connected else { return }
             self.refresh()
@@ -258,7 +259,7 @@ struct CalendarSettingsView: View {
     @State private var asanaCalendar = ""
 
     private enum Page: String, CaseIterable {
-        case general = "General", calendars = "Calendars", mail = "Mail", weather = "Weather", ipad = "iPad", updates = "Updates"
+        case general = "General", calendars = "Calendars", mail = "Mail", weather = "Weather", ipad = "Devices", updates = "Updates"
     }
     @State private var page: Page = .general
 
@@ -339,7 +340,7 @@ struct CalendarSettingsView: View {
                     }
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(12)
             .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
-            Text("Google syncing is handled by Apple Calendar. Today only reads events. Optional iPad sharing is controlled separately.")
+            Text("Google syncing is handled by Apple Calendar. Today only reads events. Optional device sharing is controlled separately.")
                 .font(.callout).foregroundStyle(.secondary)
                         }
                         settingsCard {

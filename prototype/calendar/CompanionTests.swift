@@ -11,11 +11,16 @@ import Foundation
         }
         try FileManager.default.createDirectory(at: root.appendingPathComponent("icons"), withIntermediateDirectories: true)
         try Data([137, 80, 78, 71]).write(to: root.appendingPathComponent("icons/icon-180.png"))
-        let server = CompanionServer(dashboardRoot: root, resourceRoot: root)
+        let suite = "today-companion-tests-" + UUID().uuidString
+        let preferences = UserDefaults(suiteName: suite)!
+        defer { preferences.removePersistentDomain(forName: suite) }
+        let pairingFile = root.appendingPathComponent("private/pairing")
+        let server = CompanionServer(dashboardRoot: root, resourceRoot: root, pairingFile: pairingFile, preferences: preferences)
         server.snapshot = "window.DASHBOARD_DATA = {fixture:true};"
         server.start()
         guard let link = server.links.first, let url = URL(string: link), let secret = url.fragment else { fatalError(server.status) }
         let host = "\(url.host!):\(url.port!)"
+        precondition(!url.host!.hasSuffix(".local"), "QR uses network IP")
         func request(_ path: String, method: String = "GET", cookie: String? = nil, origin: String? = nil, hostOverride: String? = nil, body: String = "") -> String {
             var fields = ["host": hostOverride ?? host]
             fields["cookie"] = cookie; fields["origin"] = origin
@@ -44,8 +49,22 @@ import Foundation
         server.stop()
         check(request("/snapshot", cookie: cookie).hasPrefix("HTTP/1.1 403"), "Stop revokes session")
         server.start()
-        check(request("/snapshot", cookie: cookie).hasPrefix("HTTP/1.1 401"), "Restart rotates token")
+        check(request("/snapshot", cookie: cookie).hasPrefix("HTTP/1.1 200"), "Restart remembers pairing")
+        check(server.links.first == link, "Stable pairing bookmark")
+        check(request("/dashboard", cookie: cookie).contains("Max-Age=31536000"), "Dashboard renews remembered session")
+        server.resumeOnLaunch = true
         server.stop()
+        let relaunched = CompanionServer(dashboardRoot: root, resourceRoot: root, pairingFile: pairingFile, preferences: preferences)
+        check(relaunched.resumeOnLaunch, "Resume preference persists")
+        relaunched.start()
+        check(relaunched.response(method: "GET", path: "/snapshot", fields: ["host": host, "cookie": cookie], body: "").starts(with: Data("HTTP/1.1 503".utf8)), "New instance accepts pairing before snapshot ready")
+        relaunched.pauseSharing()
+        check(!relaunched.resumeOnLaunch, "Explicit pause disables automatic resume")
+        relaunched.start()
+        relaunched.forgetPairedDevices()
+        check(relaunched.response(method: "GET", path: "/snapshot", fields: ["host": host, "cookie": cookie], body: "").starts(with: Data("HTTP/1.1 401".utf8)), "Forget revokes old device")
+        check(relaunched.links.first != link, "Forget replaces pairing secret")
+        relaunched.stop()
         print("Companion request tests passed")
     }
 }

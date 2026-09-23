@@ -20,7 +20,7 @@ p['CFBundleIdentifier'] = 'com.today-dashboard.portable'
 info.write_bytes(plistlib.dumps(p))
 htmlpath = root / 'dashboard/index.html'
 html = htmlpath.read_text().replace('Good morning,<br>Julius.', 'Welcome to Today.').replace('Created by Julius &middot; Made with love', 'Your day, in one place.')
-html = re.sub(r'<div class="quicklinks-grid">.*?</div>\s*</section>', '<div class="quicklinks-grid"><p class="empty-state">Add your shortcuts with Codex or Claude.</p></div>\n  </section>', html, flags=re.S)
+html = re.sub(r'<div class="quicklinks-grid">.*?</div>\s*</section>', '<div class="quicklinks-grid"><p class="empty-state">Choose Edit links to add your shortcuts.</p></div>\n  </section>', html, flags=re.S)
 htmlpath.write_text(html)
 (root/'Today.app/Contents/Resources/dashboard/index.html').write_text(html)
 (root/'data/schedule.js').write_text('// Personal weekly rhythm. Ask Codex or Claude to customize this.\nwindow.WORK_SCHEDULE = null;\n')

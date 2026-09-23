@@ -33,3 +33,13 @@ build/release-tool manifest '/absolute/path/Today.zip' 'https://www.dropbox.com/
 For the first release, obtain the feed link using a placeholder latest.json, embed it, build once, upload the ZIP, then replace the placeholder contents with the signed manifest. v1 users run Update Existing Today.command once. Thereafter the built-in updater handles releases.
 
 The custom/ folder is never overwritten by the updater. Direct edits in dashboard/ are detected against the release baseline (or v1's bundled dashboard) and block installation until migrated. Full previous folders are kept beside the installation under Today Backups. The app and installer never change system privacy settings, remove quarantine, or bypass Gatekeeper.
+
+## Current publishing checklist
+
+Keep the public feed file at its existing shared Dropbox link. Upload each clean ZIP under a unique name including its build number, for example `Today-0.3.0-build8.zip`. A ZIP upload alone does not announce an update: the final publishing step is replacing the contents of the existing `latest.json` with the signed manifest for that exact ZIP.
+
+The ordinary coworker flow is Settings → Updates → Check for updates, then review and install. Automatic checks run on launch and every six hours; installation still waits for the user. Coworkers never need to enter a Dropbox link. Older copies without the updater need the one-time `Update Existing Today.command` migration first.
+
+Device sharing uses the current network IP. Normal app updates preserve paired-device credentials on the Mac. A changed IP requires a new device bookmark and may require scanning again. A reserved IP on each network makes bookmarks more reliable.
+
+Never change or re-zip an archive after generating its manifest. Upload and verify the ZIP first, generate the signed manifest from that exact archive and its shared file link, then replace the existing feed file without deleting it. Keep previous archives available for rollback. After publishing, confirm an older portable copy sees the new version/build and can install it. The development app does not install updates.

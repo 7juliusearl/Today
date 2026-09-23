@@ -97,18 +97,18 @@ git pull                                                                      # 
 - `.claude/skills/setup-dashboard/` — the one-command setup flow used above
 
 
-## iPad companion (Today 0.3)
+## Device companion (Today 0.3)
 
-In Today on your Mac, open **Settings → iPad sharing → Start sharing**. Keep both devices on the same trusted Wi-Fi network. Scan the QR code using the iPad Camera and tap **Connect this iPad**. In Safari, choose **Share → Add to Home Screen → Open as Web App**.
+In Today on your Mac, open **Settings → Devices → Start sharing**. Keep both devices on the same trusted Wi-Fi network. Scan the QR code using your phone or tablet and tap **Connect a device**. In Safari, choose **Share → Add to Home Screen → Open as Web App**.
 
-- Sharing is off by default and does not restart automatically when Today reopens.
+- Sharing is off by default. Enable **Resume sharing when Today opens** to restart it automatically on the connected network. Pairing is remembered on this Mac across app restarts and updates.
 - The Mac must stay awake with Today open. The iPad polls the latest Mac snapshot every 15 seconds; the Mac’s existing Calendar/Mail refresh timing still applies. Refresh on the iPad fetches the latest available snapshot, not a new Mail sync.
 - Calendar, Mail summaries, Asana tasks, weekly rhythm, weather, and plans come from your Mac. The focus timer runs independently on the iPad, catches up after sleep, and does not send background alarm notifications.
 - Respond to invitations and open individual email messages on your Mac. The companion cannot remotely operate Mac apps. Web shortcuts open on the iPad. Native custom scripts are not loaded by the companion.
 - This is a local HTTP connection, **not encrypted**. Use only a trusted private network; do not forward port 8787 to the internet. Anyone with the pairing link has read access while sharing runs.
-- **Stop Sharing** invalidates all pairing links and sessions. Restarting sharing produces a new link. Data already displayed on an iPad may remain visible as an offline snapshot until closed or a revocation response is received.
-- If a connection fails, check macOS Local Network permission and firewall access for Today. Office/guest Wi-Fi may block communication between devices. If the Mac’s network address changes, restart sharing and pair again; an existing Home Screen shortcut may need replacing.
+- **Stop Sharing** pauses access and disables automatic resume, but remembers pairing. **Forget paired devices** revokes all old pairing links and browser sessions; scan a new QR code afterward. Data already displayed on an iPad may remain visible as an offline snapshot until closed or a revocation response is received.
+- If a connection fails, check macOS Local Network permission and firewall access for Today. Office/guest Wi-Fi may block communication between devices. The QR code uses the Mac’s current network IP and updates automatically when the address changes. A saved bookmark works while that IP remains the same. Home and work may need separate bookmarks; if an address changes, scan the current QR code and save a new bookmark. Ask IT (or configure your home router) for a reserved IP to keep a network’s bookmark stable. Pairing is remembered, but browser cookies and preferences belong to each address separately. Clearing browser data or letting the cookie expire may require pairing again.
 
 The companion serves only explicitly listed UI files and an authenticated runtime snapshot; it does not expose the project folder or provide a remote-command endpoint. It is a first local companion version, not an independent iPad app or an internet-hosted service.
 
-To load updated iPad UI during an active connection, tap **Update dashboard** at the top of the iPad page. If Today has restarted on the Mac, start sharing again and scan the new QR code first. Reloading keeps the timer and display preferences saved on that iPad.
+To load updated iPad UI during an active connection, tap **Update dashboard** at the top of the iPad page. If Today has restarted on the Mac, start sharing again (or enable automatic resume), then reopen the same bookmark if the Mac’s network address is unchanged. Otherwise, scan the current QR code. Reloading keeps the timer, quick links, and display preferences saved on that device. Pairing cookies last one year and are renewed when the dashboard opens; each device keeps its own preferences.
