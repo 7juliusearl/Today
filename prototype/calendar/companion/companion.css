@@ -24,3 +24,5 @@ button, summary, a { touch-action: manipulation; }
   #companion-status { right: 12px; top: 48px; }
   .page { padding-top: 118px; }
 }
+
+@media (min-width: 601px) { #companion-status { left: 130px; } }

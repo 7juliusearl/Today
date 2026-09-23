@@ -502,6 +502,101 @@ function focusRemaining(state, now = Date.now()) {
   return state.mode === "running" ? Math.max(0, state.deadline - now) : state.remaining;
 }
 
+// Layout follows each section's role instead of giving every card equal weight.
+function arrangeDashboardSections(cards) {
+  const page = document.querySelector(".page");
+  const visible = new Map(cards);
+  const mail = visible.get("mail");
+  const links = visible.get("links");
+  const headers = ["welcome", "now"].filter(id => visible.has(id));
+  const lists = ["schedule", "upcoming"].filter(id => visible.has(id));
+  const supporting = ["timer", "invites", "plan", "verse"].filter(id => visible.has(id));
+  const hasLeft = headers.length + lists.length + supporting.length > 0;
+  const leftWidth = mail && hasLeft ? 24 : 36;
+  const rows = [];
+  function place(card, column, span, row, rowSpan = 1) {
+    card.style.setProperty("--dashboard-column", `${column} / span ${span}`);
+    card.style.setProperty("--dashboard-row", `${row} / span ${rowSpan}`);
+  }
+  function row(ids, height) {
+    if (!ids.length) return;
+    rows.push(height);
+    const width = leftWidth / ids.length;
+    ids.forEach((id, i) => place(visible.get(id), i * width + 1, width, rows.length));
+  }
+  const countdown = visible.get("now")?.classList.contains("has-countdown");
+  row(headers, lists.length || supporting.length ? (countdown ? "clamp(230px, 30vh, 310px)" : "clamp(175px, 23vh, 235px)") : "minmax(0, 1fr)");
+  row(lists, "minmax(0, 1fr)");
+  row(supporting, lists.length ? "clamp(155px, 22vh, 205px)" : "minmax(0, 1fr)");
+  if (mail) {
+    if (!rows.length) rows.push("minmax(0, 1fr)");
+    place(mail, hasLeft ? 25 : 1, hasLeft ? 12 : 36, 1, rows.length);
+  }
+  if (links) { rows.push(hasLeft || mail ? "48px" : "minmax(0, 1fr)"); place(links, 1, 36, rows.length); }
+  page.style.setProperty("--dashboard-template-rows", rows.join(" ") || "minmax(0, 1fr)");
+  document.body.classList.toggle("dashboard-with-mail", !!mail && hasLeft);
+}
+
+function initDashboardSections() {
+  const sections = [
+    ["welcome", "Welcome, weather & rhythm", ".hero"], ["now", "Happening now", ".happening-now"],
+    ["schedule", "Today’s schedule", ".bento-schedule"], ["mail", "Mail", ".bento-mail"],
+    ["upcoming", "Coming up", ".bento-comingup"], ["invites", "Pending invitations", ".bento-invites"],
+    ["timer", "Focus timer", ".bento-focus"], ["plan", "Learn & Observe / personal plan", ".bento-plan"],
+    ["verse", "Verse of the day", ".bento-verse"], ["links", "Quick links", ".quicklinks"]
+  ];
+  let selected = new Set(sections.map(([id]) => id));
+  try {
+    const saved = JSON.parse(localStorage.getItem("today-dashboard-sections"));
+    if (Array.isArray(saved)) selected = new Set(saved.filter(id => sections.some(section => section[0] === id)));
+  } catch {}
+  const dialog = document.getElementById("dashboard-sections-dialog");
+  const inputs = [];
+  function apply() {
+    const active = document.body.classList.contains("focus-mode");
+    let count = 0;
+    const visibleCards = [];
+    for (const [id, , selector] of sections) {
+      const card = document.querySelector(selector);
+      if (!card) continue;
+      const visible = selected.has(id) || (active && id === "timer");
+      card.classList.toggle("dashboard-section-hidden", !visible);
+      if (visible && !card.hidden) { count++; visibleCards.push([id, card]); }
+    }
+    document.body.classList.toggle("dashboard-filtered", !active && sections.some(([id]) => !selected.has(id)));
+    arrangeDashboardSections(visibleCards);
+    document.getElementById("dashboard-sections-empty").hidden = count > 0;
+  }
+  window.applyDashboardSections = apply;
+  for (const [id, title, selector] of sections) {
+    if (!document.querySelector(selector)) continue;
+    const label = document.createElement("label");
+    const input = document.createElement("input");
+    input.type = "checkbox"; input.value = id; input.checked = selected.has(id);
+    input.addEventListener("change", () => {
+      input.checked ? selected.add(id) : selected.delete(id);
+      save();
+    });
+    label.append(input, document.createTextNode(title));
+    document.getElementById("dashboard-section-options").append(label); inputs.push(input);
+  }
+  function save() {
+    try { localStorage.setItem("today-dashboard-sections", JSON.stringify([...selected])); } catch {}
+    apply(); window.dispatchEvent(new Event("today:updated"));
+  }
+  document.getElementById("dashboard-sections-button").addEventListener("click", () => dialog.showModal());
+  for (const id of ["dashboard-sections-close", "dashboard-sections-done"]) document.getElementById(id).addEventListener("click", () => dialog.close());
+  document.getElementById("dashboard-show-all").addEventListener("click", () => {
+    selected = new Set(sections.map(([id]) => id)); inputs.forEach(input => { input.checked = true; }); save();
+  });
+  dialog.addEventListener("click", event => {
+    const box = dialog.getBoundingClientRect();
+    if (event.target === dialog && (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom)) dialog.close();
+  });
+  window.addEventListener("today:updated", apply);
+  apply();
+}
+
 function initFocusSections() {
   const sections = [
     ["welcome", "Welcome, weather & rhythm", ".hero"],
@@ -530,10 +625,11 @@ function initFocusSections() {
   });
   function apply() {
     const active = document.body.classList.contains("focus-mode");
+    window.applyDashboardSections?.();
     const customized = sections.some(([id]) => !selected.has(id));
     const mailCard = document.querySelector(".bento-mail");
-    const mailColumn = active && tallMail.checked && selected.has("mail") && mailCard && !mailCard.hidden;
-    document.body.classList.toggle("focus-filtered", active && (customized || mailColumn));
+    const mailColumn = active && tallMail.checked && selected.has("mail") && mailCard && !mailCard.hidden && !mailCard.classList.contains("dashboard-section-hidden");
+    document.body.classList.toggle("focus-filtered", active && (customized || mailColumn || document.querySelector(".dashboard-section-hidden")));
     document.body.classList.toggle("focus-mail-column", !!mailColumn);
     const leftCards = [];
     let count = 0;
@@ -541,7 +637,7 @@ function initFocusSections() {
       const card = document.querySelector(selector);
       if (!card) continue;
       card.classList.toggle("focus-section-hidden", active && !selected.has(id));
-      if (selected.has(id) && !card.hidden) {
+      if (selected.has(id) && !card.hidden && !card.classList.contains("dashboard-section-hidden")) {
         count++;
         if (id !== "mail") leftCards.push(card);
       }
@@ -556,7 +652,7 @@ function initFocusSections() {
     document.body.classList.toggle("focus-mail-solo", !!mailColumn && leftCards.length === 0);
     page.style.setProperty("--focus-columns", columns);
     page.style.setProperty("--focus-rows", Math.max(1, Math.ceil(count / columns)));
-    document.body.classList.toggle("focus-timer-only", active && customized && count === 0);
+    document.body.classList.toggle("focus-timer-only", active && count === 0);
   }
   function save() {
     try { localStorage.setItem("today-focus-sections", JSON.stringify([...selected])); } catch {}
@@ -1291,6 +1387,7 @@ window.refreshLocalDashboard = function () {
 initNativeControls();
 initThemeToggle();
 initRhythmWeekDialog();
+initDashboardSections();
 initFocusTimer();
 initRefreshButton();
 initAutoRefresh();

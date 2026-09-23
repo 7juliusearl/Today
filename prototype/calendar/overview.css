@@ -166,3 +166,19 @@
   body.focus-mail-solo .page { grid-template-rows: minmax(0, 1fr); }
   body.focus-mail-solo .page .bento-focus { justify-content: center; }
 }
+
+@media (min-width: 1000px) and (min-height: 650px) {
+  .sections-button { left: 20px; top: 10px; height: 30px; }
+  body.dashboard-filtered .page { grid-template-columns: repeat(36, minmax(0, 1fr)); grid-template-rows: var(--dashboard-template-rows); column-gap: 0; }
+  body.dashboard-filtered .page .glass-card { grid-column: var(--dashboard-column) !important; grid-row: var(--dashboard-row) !important; overflow: auto; margin-inline: 6px; }
+  body.dashboard-filtered .page .bento-focus .eyebrow { display: none; }
+  body.dashboard-filtered .page .focus-form input { width: 48px; padding: 5px; font-size: 18px; }
+  body.dashboard-filtered .page .focus-form button { padding: 7px 9px; }
+  body.dashboard-filtered .page .bento-mail { display: flex; flex-direction: column; }
+  body.dashboard-filtered .page #mail-list { flex: 1; min-height: 0; overflow-y: auto; }
+  body.dashboard-filtered .page .hero-body { gap: 16px; }
+  body.dashboard-filtered.dashboard-with-mail .page .hero-body { flex-direction: column; align-items: stretch; gap: 8px; }
+  body.dashboard-filtered.dashboard-with-mail .page .hero-rhythm { max-width: none; border: 0; padding-left: 0; }
+  body.dashboard-filtered .page .quicklinks { flex-direction: row; align-items: center; }
+  body.dashboard-filtered .page .quicklinks-grid { flex: 1; grid-template-columns: repeat(8, minmax(0, 1fr)); }
+}

@@ -22,6 +22,7 @@
 
 <div class="sticky-notes" id="sticky-notes"></div>
 
+<button id="dashboard-sections-button" class="sections-button" type="button" aria-haspopup="dialog" aria-controls="dashboard-sections-dialog" aria-label="Choose dashboard sections"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>Sections</span></button>
 <div class="top-controls">
   <span class="refresh-status" id="refresh-status" hidden></span>
   <button class="icon-btn refresh-btn" id="refresh-btn" type="button" aria-label="Refresh dashboard" title="Reloads now, and requests a live data update (ready within ~2 min)">
@@ -41,6 +42,7 @@
 </div>
 
 <main class="page">
+  <p id="dashboard-sections-empty" hidden>All sections are hidden. Use Sections above to bring them back.</p>
 
   <header class="hero glass-card">
     <div class="hero-top">
@@ -206,6 +208,11 @@
 
 </main>
 
+<dialog class="rhythm-week-dialog" id="dashboard-sections-dialog" aria-labelledby="dashboard-sections-title">
+  <div class="rhythm-week-header"><div><p class="eyebrow">Your dashboard</p><h2 id="dashboard-sections-title">Show sections</h2></div><button class="rhythm-week-close" id="dashboard-sections-close" type="button" aria-label="Close sections">×</button></div>
+  <div class="rhythm-week-body"><p class="focus-settings-help">Choose what you want to see. Changes save automatically on this device. Sections without data may stay hidden.</p><div id="dashboard-section-options"></div><p class="focus-settings-help">While focusing, your timer settings can hide additional sections. A running or paused timer always stays visible.</p></div>
+  <div class="focus-settings-footer"><button id="dashboard-show-all" type="button">Show all</button><button id="dashboard-sections-done" type="button">Done</button></div>
+</dialog>
 <dialog class="rhythm-week-dialog" id="focus-settings-dialog" aria-labelledby="focus-settings-title">
   <div class="rhythm-week-header"><div><p class="eyebrow">Timer settings</p><h2 id="focus-settings-title">Only show</h2></div><button class="rhythm-week-close" id="focus-settings-close" type="button" aria-label="Close timer settings">×</button></div>
   <div class="rhythm-week-body"><p class="focus-settings-help">Choose what stays visible while your timer runs or is paused. The timer always stays visible. Your full dashboard returns when the session ends.</p><label class="focus-mail-option"><input type="checkbox" id="focus-tall-mail" checked> Tall Mail column</label><p class="focus-settings-help">On wide screens, keep Mail full height beside the timer and other selected sections.</p><div id="focus-section-options"></div><p class="focus-settings-help">Saved on this device. Sections without data may stay hidden.</p></div>
