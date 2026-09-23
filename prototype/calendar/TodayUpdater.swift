@@ -40,7 +40,9 @@ final class UpdateNetwork: NSObject, URLSessionTaskDelegate, @unchecked Sendable
     private var checkedFeed = ""
     private var lastCheck = Date.distantPast
     init() {
-        feed = UserDefaults.standard.string(forKey: "updateFeedURL") ?? (Bundle.main.object(forInfoDictionaryKey: "TodayUpdateFeedURL") as? String ?? "")
+        let bundled = Bundle.main.object(forInfoDictionaryKey: "TodayUpdateFeedURL") as? String ?? ""
+        let saved = UserDefaults.standard.string(forKey: "updateFeedURL")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        feed = saved.isEmpty ? bundled : saved
         automatic = UserDefaults.standard.object(forKey: "automaticUpdateChecks") as? Bool ?? true
     }
     func saveFeed() {
@@ -114,12 +116,11 @@ struct TodayUpdateSettings: View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Updates").font(.headline)
             Text("Today \(updater.version)").font(.caption).foregroundStyle(.secondary)
-            TextField("Dropbox shared link to latest.json", text: $updater.feed).textFieldStyle(.roundedBorder).disabled(updater.busy)
             HStack {
-                Button("Save update link") { updater.saveFeed() }.disabled(updater.busy)
                 Button("Check for updates") { Task { await updater.check() } }.disabled(updater.busy || updater.feed.isEmpty)
                 if updater.busy { ProgressView().controlSize(.small) }
             }
+            Text("Updates are delivered through Today’s built-in update service. No setup needed.").font(.caption).foregroundStyle(.secondary)
             Toggle("Check for updates automatically", isOn: $updater.automatic)
             Text("Checks on launch and every six hours while Today is open. Installation always waits for you.").font(.caption).foregroundStyle(.secondary)
             if let release = updater.available {
@@ -128,6 +129,12 @@ struct TodayUpdateSettings: View {
                 Text("Your existing folder is backed up beside Today. Personal data and custom/ files are kept. Changes made directly in dashboard/ must be migrated first.").font(.caption).foregroundStyle(.secondary)
             }
             if !updater.status.isEmpty { Text(updater.status).font(.caption).textSelection(.enabled) }
+            if !TodayPaths.portable {
+                DisclosureGroup("Developer update settings") {
+                    TextField("Update source", text: $updater.feed).textFieldStyle(.roundedBorder).disabled(updater.busy)
+                    Button("Save update source") { updater.saveFeed() }.disabled(updater.busy)
+                }.font(.caption)
+            }
             if !TodayPaths.portable { Text("You’re using the development copy. Installation is available in the coworker copy.").font(.caption).foregroundStyle(.secondary) }
         }
     }

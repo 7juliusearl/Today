@@ -1495,3 +1495,8 @@ a.asana-task:hover { color: var(--accent); }
 
 .focus-mail-option { display: flex; align-items: center; gap: 12px; padding: 12px; font-weight: 600; cursor: pointer; }
 .focus-mail-option input { width: 20px; height: 20px; accent-color: var(--accent); }
+
+.native-control { position: relative; }
+.native-control[aria-pressed="true"] { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
+.native-attention::after { content: ""; position: absolute; top: 2px; right: 2px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+.native-control:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }

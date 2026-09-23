@@ -10,7 +10,7 @@ If the installer reports customized dashboard files, no update is installed. Ask
 
 ## Future updates
 
-In Today Settings → Updates, paste the **view-only shared file link to latest.json** provided by the publisher and save it. A link to the whole Dropbox folder won't work. If the release already includes the link, no setup is needed.
+Today includes its permanent update address. In **Settings → Updates**, select **Check for updates**, then **Install update and restart** when an update is available. No link setup is needed. Automatic checks run on launch and every six hours; installation waits for you.
 
 Today checks when it opens and every six hours while running. An update icon appears in the toolbar when a verified newer build is available. Open Settings to see the release notes and choose **Install update and restart**. Updates never install without that click. You can turn automatic checking off and use Check for updates instead.
 

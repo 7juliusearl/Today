@@ -154,9 +154,13 @@ import ServiceManagement
 
 struct DashboardWebView: NSViewRepresentable {
     @ObservedObject var model: CalendarModel
+    var pinned = false
+    var updateAvailable = false
+    var spaceWarning = false
     func makeCoordinator() -> Coordinator { Coordinator(model) }
     func makeNSView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
+        configuration.userContentController.add(context.coordinator, name: "dashboardControl")
         configuration.userContentController.add(context.coordinator, name: "calendarRefresh")
         configuration.userContentController.add(context.coordinator, name: "openSettings")
         configuration.userContentController.add(context.coordinator, name: "mailOpen")
@@ -167,6 +171,8 @@ struct DashboardWebView: NSViewRepresentable {
         return view
     }
     func updateNSView(_ view: WKWebView, context: Context) {
+        context.coordinator.controlsScript = "window.todayNativeState?.({pinned: \(pinned), updateAvailable: \(updateAvailable), spaceWarning: \(spaceWarning)});"
+        context.coordinator.updateControls(in: view)
         guard context.coordinator.revision != model.revision else { return }
         context.coordinator.revision = model.revision
         context.coordinator.update(model.script, in: view)
@@ -174,6 +180,10 @@ struct DashboardWebView: NSViewRepresentable {
     class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
         let model: CalendarModel
         var revision = -1
+        var controlsScript = ""
+        func updateControls(in view: WKWebView) {
+            if ready { view.evaluateJavaScript(controlsScript, completionHandler: nil) }
+        }
         private var started = false
         private var ready = false
         private var applying = false
@@ -203,12 +213,20 @@ struct DashboardWebView: NSViewRepresentable {
         }
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             ready = true
+            updateControls(in: webView)
             applyPending(in: webView)
         }
         init(_ model: CalendarModel) { self.model = model }
         func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
             guard message.frameInfo.isMainFrame, message.frameInfo.request.url?.isFileURL == true else { return }
-            if message.name == "openSettings" {
+            if message.name == "dashboardControl", let action = message.body as? String {
+                if ["dark", "light"].contains(action) {
+                    UserDefaults.standard.set(action, forKey: "dashboardAppearance")
+                    NSApp.appearance = NSAppearance(named: action == "dark" ? .darkAqua : .aqua)
+                } else if ["pin", "options"].contains(action) {
+                    NotificationCenter.default.post(name: Notification.Name("TodayDashboardControl"), object: action)
+                }
+            } else if message.name == "openSettings" {
                 NotificationCenter.default.post(name: Notification.Name("TodayOpenSettings"), object: nil)
             } else if message.name == "respondInCalendar", let id = message.body as? String {
                 model.respondInCalendar(id: id)
@@ -239,21 +257,40 @@ struct CalendarSettingsView: View {
     @State private var primary = ""
     @State private var asanaCalendar = ""
 
+    private enum Page: String, CaseIterable {
+        case general = "General", calendars = "Calendars", mail = "Mail", weather = "Weather", ipad = "iPad", updates = "Updates"
+    }
+    @State private var page: Page = .general
+
     var body: some View {
-        ScrollView {
-        VStack(alignment: .leading, spacing: 18) {
-            Text("Settings").font(.title2.weight(.semibold))
-            CompanionSettingsView(server: model.companion)
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                Image(nsImage: NSApplication.shared.applicationIconImage).resizable().frame(width: 40, height: 40)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Settings").font(.title2.weight(.bold))
+                    Text("Make Today yours.").font(.subheadline).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button { dismiss() } label: {
+                    Image(systemName: "xmark").font(.system(size: 13, weight: .semibold)).frame(width: 28, height: 28)
+                }.buttonStyle(.borderless).background(.quaternary, in: Circle())
+                    .accessibilityLabel("Close settings without saving name or calendar changes")
+                    .help("Close settings")
+            }.padding(22)
+            Picker("Settings section", selection: $page) {
+                ForEach(Page.allCases, id: \.self) { item in Text(item.rawValue).tag(item) }
+            }.pickerStyle(.segmented).labelsHidden().padding(.horizontal, 22).padding(.bottom, 18)
             Divider()
-            TodayUpdateSettings()
-            Divider()
-            if let project = TodayPaths.project {
-                Button("Open customization folder") { NSWorkspace.shared.open(project) }
-                Text("Open this folder in Codex or Claude to customize Today. Restart Today after layout edits; schedule and plan edits appear on refresh.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-            Text("Choose the Apple calendars you want to see in Today.")
-                .foregroundStyle(.secondary)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    switch page {
+                    case .general:
+                        settingsCard {
+                            Text("Your profile").font(.headline)
+                            TextField("First name", text: $name).textFieldStyle(.roundedBorder)
+                            Text("Used in your dashboard greeting.").font(.caption).foregroundStyle(.secondary)
+                        }
+                        settingsCard {
             VStack(alignment: .leading, spacing: 6) {
                 Toggle("Launch at login", isOn: Binding(
                     get: { login.enabled }, set: { login.setEnabled($0) }
@@ -265,7 +302,71 @@ struct CalendarSettingsView: View {
                 }
                 if let error = login.error { Text(error).font(.caption).foregroundStyle(.red) }
             }
-            Divider()
+                        }
+                        settingsCard {
+            if let project = TodayPaths.project {
+                Button("Open customization folder") { NSWorkspace.shared.open(project) }
+                Text("Open this folder in Codex or Claude to customize Today. Restart Today after layout edits; schedule and plan edits appear on refresh.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+                            if TodayPaths.project == nil {
+                                Text("Personalize your dashboard").font(.headline)
+                                Text("Use the timer’s gear to choose which sections stay visible while you focus. Edit the project folder with Codex or Claude for other customizations.").font(.callout).foregroundStyle(.secondary)
+                            }
+                        }
+                    case .calendars:
+                        settingsCard {
+                            Text("Your calendars").font(.headline)
+                            Text("Choose which calendars appear on your dashboard.").foregroundStyle(.secondary)
+            Picker("Primary calendar", selection: $primary) {
+                Text("Choose…").tag("")
+                ForEach(model.calendars, id: \.calendarIdentifier) { calendar in
+                    Text("\(calendar.title) — \(calendar.source.title)").tag(calendar.calendarIdentifier)
+                }
+            }
+            Text("Calendars to display").font(.headline)
+            VStack(alignment: .leading, spacing: 12) {
+                    ForEach(model.calendars, id: \.calendarIdentifier) { calendar in
+                        Toggle(isOn: Binding(
+                            get: { selected.contains(calendar.calendarIdentifier) },
+                            set: { if $0 { selected.insert(calendar.calendarIdentifier) } else { selected.remove(calendar.calendarIdentifier) } }
+                        )) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(calendar.title)
+                                Text(calendar.source.title).font(.caption).foregroundStyle(.secondary)
+                            }
+                        }.toggleStyle(.checkbox)
+                    }
+                }.frame(maxWidth: .infinity, alignment: .leading).padding(12)
+            .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
+            Text("Google syncing is handled by Apple Calendar. Today only reads events. Optional iPad sharing is controlled separately.")
+                .font(.callout).foregroundStyle(.secondary)
+                        }
+                        settingsCard {
+                            DisclosureGroup("Asana calendar subscription") {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Asana tasks").font(.headline)
+                Text("In Asana, open My Tasks → its menu → Sync to Calendar. Copy the subscription link, then in Apple Calendar choose File → New Calendar Subscription and paste it. Choose that calendar below.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Picker("Asana calendar", selection: $asanaCalendar) {
+                    Text("Not connected").tag("")
+                    ForEach(model.calendars, id: \.calendarIdentifier) { calendar in
+                        Text("\(calendar.title) — \(calendar.source.title)").tag(calendar.calendarIdentifier)
+                    }
+                }
+                HStack {
+                    Button("Reload calendars") { model.loadCalendars() }
+                    Link("Setup guide ↗", destination: URL(string: "https://asana.com/apps/calendar")!)
+                }
+                Text("Tasks due today appear in Today’s calendar. Subscription updates may be delayed. Complete tasks in Asana; tasks without due dates aren’t included.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+                            }
+                        }
+                    case .mail:
+                        settingsCard { MailSettingsView(mail: model.mail) }
+                    case .weather:
+                        settingsCard {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Weather").font(.headline)
                 Label(model.extras.locationAuthorized ? "Location access allowed" : model.extras.locationDenied ? "Location access is off" : "Location not connected",
@@ -298,52 +399,19 @@ struct CalendarSettingsView: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
-            Divider()
-            MailSettingsView(mail: model.mail)
-            Divider()
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Asana tasks").font(.headline)
-                Text("In Asana, open My Tasks → its menu → Sync to Calendar. Copy the subscription link, then in Apple Calendar choose File → New Calendar Subscription and paste it. Choose that calendar below.")
-                    .font(.caption).foregroundStyle(.secondary)
-                Picker("Asana calendar", selection: $asanaCalendar) {
-                    Text("Not connected").tag("")
-                    ForEach(model.calendars, id: \.calendarIdentifier) { calendar in
-                        Text("\(calendar.title) — \(calendar.source.title)").tag(calendar.calendarIdentifier)
+                        }
+                    case .ipad:
+                        settingsCard { CompanionSettingsView(server: model.companion) }
+                    case .updates:
+                        settingsCard { TodayUpdateSettings() }
                     }
-                }
-                HStack {
-                    Button("Reload calendars") { model.loadCalendars() }
-                    Link("Setup guide ↗", destination: URL(string: "https://asana.com/apps/calendar")!)
-                }
-                Text("Tasks due today appear in Today’s calendar. Subscription updates may be delayed. Complete tasks in Asana; tasks without due dates aren’t included.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
+                }.padding(22).frame(maxWidth: .infinity, alignment: .leading)
+            }.id(page).frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(nsColor: .windowBackgroundColor))
             Divider()
-            TextField("Your first name", text: $name).textFieldStyle(.roundedBorder)
-            Picker("Primary calendar", selection: $primary) {
-                Text("Choose…").tag("")
-                ForEach(model.calendars, id: \.calendarIdentifier) { calendar in
-                    Text("\(calendar.title) — \(calendar.source.title)").tag(calendar.calendarIdentifier)
-                }
-            }
-            Text("Calendars to display").font(.headline)
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    ForEach(model.calendars, id: \.calendarIdentifier) { calendar in
-                        Toggle(isOn: Binding(
-                            get: { selected.contains(calendar.calendarIdentifier) },
-                            set: { if $0 { selected.insert(calendar.calendarIdentifier) } else { selected.remove(calendar.calendarIdentifier) } }
-                        )) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(calendar.title)
-                                Text(calendar.source.title).font(.caption).foregroundStyle(.secondary)
-                            }
-                        }.toggleStyle(.checkbox)
-                    }
-                }.frame(maxWidth: .infinity, alignment: .leading).padding(12)
-            }.frame(height: 220).background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
-            Text("Google syncing is handled by Apple Calendar. Today only reads events and keeps them on this Mac.")
-                .font(.callout).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Save applies your name and calendar choices. Other controls apply immediately.")
+                    .font(.caption).foregroundStyle(.secondary)
             HStack {
                 Button("Cancel") { dismiss() }.keyboardShortcut(.cancelAction)
                 Spacer()
@@ -358,8 +426,11 @@ struct CalendarSettingsView: View {
                 }.keyboardShortcut(.defaultAction)
                     .disabled(!model.calendars.contains { selected.contains($0.calendarIdentifier) })
             }
-        }.padding(24)
-        }.frame(width: 590, height: 680)
+            }.padding(.horizontal, 22).padding(.vertical, 16)
+        }
+        .tint(Color(red: 0.93, green: 0.29, blue: 0.13))
+        .frame(width: min(680, (NSScreen.main?.visibleFrame.width ?? 1000) - 60),
+               height: min(700, (NSScreen.main?.visibleFrame.height ?? 900) - 100))
         .onAppear {
             login.reload()
             selected = model.selected
@@ -374,6 +445,12 @@ struct CalendarSettingsView: View {
         .onChange(of: primary) { _, value in
             if !value.isEmpty { selected.insert(value) }
         }
+    }
+    private func settingsCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: 12, content: content)
+            .frame(maxWidth: .infinity, alignment: .leading).padding(18)
+            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.quaternary, lineWidth: 1))
     }
 }
 
@@ -432,12 +509,15 @@ struct PrototypeView: View {
     @StateObject private var space = WindowSpaceController()
     @State private var settingsPresented = false
     @State private var windowControlPresented = false
+    @State private var windowOptionsPresented = false
+    @State private var setupAfterOptions = false
+    @AppStorage("dashboardAppearance") private var dashboardAppearance = ""
     @AppStorage("alwaysOnTop") private var alwaysOnTop = false
     let timer = Timer.publish(every: 300, on: .main, in: .common).autoconnect()
     var body: some View {
         Group {
             if model.setupCompleted && !model.script.isEmpty {
-                DashboardWebView(model: model)
+                DashboardWebView(model: model, pinned: alwaysOnTop, updateAvailable: updater.available != nil, spaceWarning: space.enabled && !space.trusted)
             } else {
                 IntroView(model: model, mail: model.mail)
             }
@@ -445,22 +525,30 @@ struct PrototypeView: View {
         .frame(minWidth: 480, minHeight: 360)
         .background(DashboardWindowLevel(alwaysOnTop: alwaysOnTop, space: space))
         .navigationTitle("Today")
-        .toolbar {
-            ToolbarItem {
-                if updater.available != nil {
-                    Button { settingsPresented = true } label: { Label("Update available", systemImage: "arrow.down.circle.fill") }
-                    .help("A new version of Today is available")
-                }
+        .preferredColorScheme(dashboardAppearance == "dark" ? .dark : dashboardAppearance == "light" ? .light : nil)
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("TodayDashboardControl"))) { notification in
+            switch notification.object as? String {
+            case "pin": alwaysOnTop.toggle()
+            case "options": space.refreshPermission(); windowOptionsPresented = true
+            default: break
             }
-            ToolbarItem {
-                Menu {
+        }
+        .sheet(isPresented: $windowOptionsPresented, onDismiss: {
+            if setupAfterOptions { setupAfterOptions = false; windowControlPresented = true }
+        }) {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack {
+                    Text("Window options").font(.title2.bold())
+                    Spacer()
+                    Button { windowOptionsPresented = false } label: { Image(systemName: "xmark") }.help("Close window options")
+                }
                     Toggle("Reserve dashboard space", isOn: Binding(
                         get: { space.enabled },
                         set: { enabled in
                             space.enabled = enabled
                             if enabled {
                                 space.refreshPermission()
-                                if !space.trusted { windowControlPresented = true }
+                                if !space.trusted { setupAfterOptions = true; windowOptionsPresented = false }
                             }
                         }
                     ))
@@ -471,29 +559,15 @@ struct PrototypeView: View {
                     if !space.trusted {
                         Button("Set up window control…") {
                             space.refreshPermission()
-                            windowControlPresented = true
+                            setupAfterOptions = true; windowOptionsPresented = false
                         }
                     }
                     if !space.status.isEmpty { Text(space.status) }
-                } label: {
-                    Label("Reserve dashboard space", systemImage: space.enabled && !space.trusted ? "exclamationmark.triangle" : "rectangle.lefthalf.inset.filled")
-                }
-                .help("Reserve space for Today when another window is enlarged")
-            }
-            ToolbarItem {
-                Toggle(isOn: $alwaysOnTop) {
-                    Label("Always on top", systemImage: alwaysOnTop ? "pin.fill" : "pin")
-                }
-                .toggleStyle(.button)
-                .help(alwaysOnTop ? "Always on top on every desktop — click to turn off" : "Keep Today above other windows on every desktop")
-            }
-            ToolbarItem {
-                Button { model.loadCalendars(); settingsPresented = true } label: {
-                    Label("Settings", systemImage: "gearshape")
-                }.disabled(!model.connected || !model.setupCompleted).help("Choose calendars and edit your name")
-            }
+
+                HStack { Spacer(); Button("Done") { windowOptionsPresented = false }.keyboardShortcut(.cancelAction) }
+            }.padding(24).frame(width: 420)
         }
-        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("TodayOpenSettings"))) { _ in settingsPresented = true }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("TodayOpenSettings"))) { _ in model.loadCalendars(); settingsPresented = true }
         .sheet(isPresented: $settingsPresented) { CalendarSettingsView(model: model, login: model.login) }
         .sheet(isPresented: $windowControlPresented) { WindowControlSetupView(space: space) }
         .onAppear {

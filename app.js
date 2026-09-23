@@ -974,6 +974,36 @@ function renderVerse() {
   versionEl.textContent = verse.version || "";
 }
 
+function initNativeControls() {
+  const bridge = window.webkit?.messageHandlers?.dashboardControl;
+  if (!bridge || window.TODAY_COMPANION) return;
+  const bar = document.querySelector(".top-controls");
+  const theme = document.getElementById("theme-toggle");
+  const icons = {
+    options: '<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M10 4v16"/>',
+    pin: '<path d="m9 3 6 0-1 7 4 4v2H6v-2l4-4-1-7Z"/><path d="M12 16v6"/>',
+    settings: '<path d="M9.28,5.44 L10.65,5.03 L10.19,2.67 L13.81,2.67 L13.35,5.03 L14.72,5.44 L15.97,6.11 L17.31,4.12 L19.88,6.69 L17.89,8.03 L18.56,9.28 L18.97,10.65 L21.33,10.19 L21.33,13.81 L18.97,13.35 L18.56,14.72 L17.89,15.97 L19.88,17.31 L17.31,19.88 L15.97,17.89 L14.72,18.56 L13.35,18.97 L13.81,21.33 L10.19,21.33 L10.65,18.97 L9.28,18.56 L8.03,17.89 L6.69,19.88 L4.12,17.31 L6.11,15.97 L5.44,14.72 L5.03,13.35 L2.67,13.81 L2.67,10.19 L5.03,10.65 L5.44,9.28 L6.11,8.03 L4.12,6.69 L6.69,4.12 L8.03,6.11 Z"/><circle cx="12" cy="12" r="3.2"/>'
+  };
+  for (const [action, label] of [["options", "Window options"], ["pin", "Always on top"], ["settings", "Settings"]]) {
+    const button = document.createElement("button");
+    button.type = "button"; button.id = "native-" + action; button.className = "icon-btn native-control";
+    button.setAttribute("aria-label", label); button.title = label;
+    button.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round">' + icons[action] + '</svg>';
+    if (action === "pin") button.setAttribute("aria-pressed", "false");
+    button.addEventListener("click", () => action === "settings" ? window.webkit.messageHandlers.openSettings.postMessage("open") : bridge.postMessage(action));
+    bar.insertBefore(button, theme);
+  }
+  window.todayNativeState = state => {
+    document.getElementById("native-pin").setAttribute("aria-pressed", String(state.pinned));
+    const settings = document.getElementById("native-settings");
+    settings.classList.toggle("native-attention", state.updateAvailable);
+    settings.title = state.updateAvailable ? "Settings — update available" : "Settings";
+    const options = document.getElementById("native-options");
+    options.classList.toggle("native-attention", state.spaceWarning);
+    options.title = state.spaceWarning ? "Window options — permission needed" : "Window options";
+  };
+}
+
 function initThemeToggle() {
   const root = document.documentElement;
   const btn = document.getElementById("theme-toggle");
@@ -990,6 +1020,7 @@ function initThemeToggle() {
       : window.matchMedia("(prefers-color-scheme: dark)").matches;
     btn.setAttribute("aria-pressed", String(isDark));
     label.textContent = isDark ? "Dark" : "Light";
+    window.webkit?.messageHandlers?.dashboardControl?.postMessage(isDark ? "dark" : "light");
   }
 
   apply(stored);
@@ -1257,6 +1288,7 @@ window.refreshLocalDashboard = function () {
   window.dispatchEvent(new Event("today:updated"));
 };
 
+initNativeControls();
 initThemeToggle();
 initRhythmWeekDialog();
 initFocusTimer();
