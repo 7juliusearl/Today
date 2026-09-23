@@ -153,7 +153,7 @@ import CoreImage.CIFilterBuiltins
     private static let pairPage = """
     <!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><title>Today</title><meta name="apple-mobile-web-app-title" content="Today"><link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180.png"><link rel="icon" href="/icons/icon-32.png"><link rel="manifest" href="/manifest.json">
     <style>body{background:#191919;color:#f4f0e8;font:20px system-ui;max-width:500px;margin:15vh auto;padding:24px}h1{font-size:44px}button{background:#ff7446;color:#191919;border:0;border-radius:12px;padding:16px;font:inherit}</style>
-    <h1>Your day, beside you.</h1><p id="status">Scan the QR code in Today’s Mac settings to connect this iPad.</p><button id="pair" hidden>Connect this iPad</button>
+    <h1>Your day, beside you.</h1><p id="status">Scan the QR code in Today’s Mac settings to connect a device.</p><button id="pair" hidden>Connect a device</button>
     <script>const secret=location.hash.slice(1);history.replaceState(null,'','/');if(secret){const b=document.getElementById('pair');b.hidden=false;b.onclick=async()=>{b.disabled=true;try{const r=await fetch('/pair',{method:'POST',body:secret});if(!r.ok)throw Error();location.replace('/dashboard');}catch(e){document.getElementById('status').textContent='Pairing expired or your Mac is unavailable. Scan a new QR code from Today.';b.disabled=false;}};}</script>
     """
     private static func addresses() -> [String] {
@@ -192,7 +192,7 @@ struct CompanionSettingsView: View {
             Text(server.status).font(.caption)
             if server.running, let link = server.links.first {
                 if let image = qr(link) { Image(nsImage: image).interpolation(.none).resizable().frame(width: 180, height: 180).padding(8).background(.white).accessibilityLabel("Scan to pair your iPad with Today") }
-                Text("1. Scan with your iPad’s Camera, then tap Connect this iPad.\n2. In Safari, tap Share → Add to Home Screen → Open as Web App.\nKeep this Mac awake and Today open for live updates.").font(.caption)
+                Text("1. Scan with your iPad’s Camera, then tap Connect a device.\n2. In Safari, tap Share → Add to Home Screen → Open as Web App.\nKeep this Mac awake and Today open for live updates.").font(.caption)
                 ForEach(server.links, id: \.self) { link in
                     Button("Copy pairing link (\(URL(string: link)?.host ?? "Mac"))") { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(link, forType: .string) }
                 }

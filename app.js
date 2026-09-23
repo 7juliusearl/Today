@@ -503,6 +503,74 @@ function focusRemaining(state, now = Date.now()) {
 }
 
 // Layout follows each section's role instead of giving every card equal weight.
+function initQuickLinks() {
+  const grid = document.querySelector(".quicklinks-grid");
+  const dialog = document.getElementById("quicklinks-dialog");
+  if (!grid || !dialog) return;
+  const key = "today-quick-links";
+  const defaults = [...grid.querySelectorAll("a")].map(a => ({name: a.querySelector(".quicklink-label").textContent, url: a.href, icon: a.querySelector("img")?.src}));
+  function normalize(value) {
+    const raw = value.trim();
+    if (!raw) throw Error("Enter a website address for each link.");
+    const url = new URL(/^[a-z][a-z\d+.-]*:/i.test(raw) ? raw : `https://${raw}`);
+    if (!["https:", "http:"].includes(url.protocol) || !url.hostname || url.username || url.password) throw Error("Use an http or https website address without a username or password.");
+    return url.href;
+  }
+  let links = defaults;
+  try {
+    const saved = JSON.parse(localStorage.getItem(key));
+    if (Array.isArray(saved) && saved.every(link => typeof link.name === "string" && link.name.trim() && typeof link.url === "string")) {
+      links = saved.map(link => ({name: link.name, url: normalize(link.url)}));
+    }
+  } catch (_) { /* Keep working defaults if stored data is unreadable. */ }
+  function render() {
+    grid.replaceChildren();
+    for (const link of links) {
+      const a = document.createElement("a");
+      a.className = "quicklink"; a.href = link.url; a.target = "_blank"; a.rel = "noopener noreferrer";
+      const icon = document.createElement("span"); icon.className = "quicklink-icon";
+      const original = defaults.find(item => item.url === link.url);
+      if (original?.icon) {
+        const img = document.createElement("img"); img.src = original.icon; img.alt = ""; img.loading = "lazy"; img.referrerPolicy = "no-referrer"; icon.append(img);
+      } else { icon.textContent = link.name.trim().slice(0, 1).toUpperCase(); }
+      const label = document.createElement("span"); label.className = "quicklink-label"; label.textContent = link.name;
+      a.title = `${link.name} — ${link.url}`; a.append(icon, label); grid.append(a);
+    }
+    if (!links.length) { const empty = document.createElement("span"); empty.className = "quicklinks-empty"; empty.textContent = "Add your first link with Edit links."; grid.append(empty); }
+  }
+  const rows = document.getElementById("quicklinks-rows");
+  const error = document.getElementById("quicklinks-error");
+  function addRow(link = {name: "", url: ""}) {
+    const row = document.createElement("div"); row.className = "quicklinks-row";
+    for (const [field, title, placeholder] of [["name", "Name", "Project board"], ["url", "Website", "https://example.com"]]) {
+      const label = document.createElement("label"); label.textContent = title;
+      const input = document.createElement("input"); input.dataset.field = field; input.value = link[field]; input.placeholder = placeholder; input.type = "text";
+      if (field === "url") { input.inputMode = "url"; input.autocapitalize = "off"; input.spellcheck = false; }
+      label.append(input); row.append(label);
+    }
+    const remove = document.createElement("button"); remove.type = "button"; remove.className = "quicklinks-edit"; remove.textContent = "Remove";
+    remove.addEventListener("click", () => { const next = row.nextElementSibling || row.previousElementSibling; row.remove(); (next?.querySelector("input") || document.getElementById("quicklinks-add")).focus(); });
+    row.append(remove); rows.append(row); return row;
+  }
+  document.getElementById("quicklinks-edit").addEventListener("click", () => { rows.replaceChildren(); links.forEach(addRow); error.textContent = ""; dialog.showModal(); });
+  document.getElementById("quicklinks-add").addEventListener("click", () => addRow().querySelector("input").focus());
+  for (const id of ["quicklinks-close", "quicklinks-cancel"]) document.getElementById(id).addEventListener("click", () => dialog.close());
+  dialog.addEventListener("click", e => { if (e.target === dialog && e.clientX >= 0) { const r = dialog.getBoundingClientRect(); if (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) dialog.close(); } });
+  document.getElementById("quicklinks-save").addEventListener("click", () => {
+    const next = [];
+    for (const row of rows.children) {
+      const name = row.querySelector('[data-field="name"]'), url = row.querySelector('[data-field="url"]');
+      if (!name.value.trim()) { error.textContent = "Give each link a name, or remove the empty row."; name.focus(); return; }
+      try { next.push({name: name.value.trim(), url: normalize(url.value)}); }
+      catch (_) { error.textContent = "Enter a valid http or https website address for each link."; url.focus(); return; }
+    }
+    try { localStorage.setItem(key, JSON.stringify(next)); }
+    catch (_) { error.textContent = "Your links couldn’t be saved. Please try again."; return; }
+    links = next; render(); dialog.close();
+  });
+  render();
+}
+
 function arrangeDashboardSections(cards) {
   const page = document.querySelector(".page");
   const visible = new Map(cards);
@@ -1384,6 +1452,7 @@ window.refreshLocalDashboard = function () {
   window.dispatchEvent(new Event("today:updated"));
 };
 
+initQuickLinks();
 initNativeControls();
 initThemeToggle();
 initRhythmWeekDialog();

@@ -24,6 +24,7 @@ import Foundation
         func check(_ ok: Bool, _ name: String) { precondition(ok, name) }
         let cookie = "today_companion=" + secret
         check(request("/").contains("<title>Today</title>"), "Pairing shell")
+        check(request("/").contains("Connect a device"), "Device-neutral pairing")
         check(request("/icons/icon-180.png").hasPrefix("HTTP/1.1 200"), "Home Screen artwork available without cookie")
         check(request("/manifest.json").hasPrefix("HTTP/1.1 200"), "Public manifest")
         check(request("/app.js").hasPrefix("HTTP/1.1 401"), "Non-public assets still require pairing")

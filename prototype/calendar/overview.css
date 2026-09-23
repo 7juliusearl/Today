@@ -182,3 +182,12 @@
   body.dashboard-filtered .page .quicklinks { flex-direction: row; align-items: center; }
   body.dashboard-filtered .page .quicklinks-grid { flex: 1; grid-template-columns: repeat(8, minmax(0, 1fr)); }
 }
+
+@media (min-width: 1000px) and (min-height: 650px) {
+  .page .quicklinks .panel-head { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .page .quicklinks .quicklinks-edit { margin: 0; padding: 4px 7px; }
+  .page .quicklinks .quicklinks-grid { display: flex; min-width: 0; overflow-x: auto; overflow-y: hidden; align-items: center; }
+  .page .quicklinks .quicklink { flex: 1 0 95px; min-width: 0; }
+  .page .quicklinks .quicklink-label { white-space: nowrap; }
+  body.focus-filtered .page .quicklinks .quicklinks-grid { display: grid; overflow: visible; }
+}

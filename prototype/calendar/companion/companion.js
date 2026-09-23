@@ -69,7 +69,7 @@ async function companionRefresh() {
     const stale = !stamp || Date.now() - new Date(stamp).getTime() > 10 * 60 * 1000;
     companionMessage.textContent = stale
       ? 'Connected · Mac data is older than 10 minutes. Refresh Today on your Mac.'
-      : 'Connected to your Mac · Timer stays on this iPad';
+      : 'Connected to your Mac · Timer stays on this device';
   } catch {
     companionMessage.textContent = companionLoaded
       ? 'Mac unavailable · Showing the last received data. Keep your Mac awake and Today open.'

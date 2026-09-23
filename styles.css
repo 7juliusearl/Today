@@ -1511,3 +1511,17 @@ a.asana-task:hover { color: var(--accent); }
 #dashboard-sections-done { background: var(--accent); color: white; }
 #dashboard-sections-empty { grid-column: 1 / -1; align-self: center; text-align: center; color: var(--ink-soft); padding: 24px; }
 @media (max-width: 600px) { .sections-button { left: 16px; padding: 0 10px; } .sections-button span { display: none; } }
+
+/* Personal quick links: a scrollable editor with actions always in reach. */
+.quicklinks-edit { border: 1px solid var(--line); border-radius: 8px; padding: 6px 9px; background: var(--glass-bg); color: var(--ink); font: 500 11px var(--sans); cursor: pointer; white-space: nowrap; }
+.quicklinks .quicklinks-edit { margin-top: 5px; }
+.quicklinks-row { display: grid; grid-template-columns: 1fr 1.7fr auto; align-items: end; gap: 10px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+.quicklinks-row label { display: flex; flex-direction: column; gap: 6px; min-width: 0; font-size: 12px; color: var(--ink-soft); }
+.quicklinks-row input { width: 100%; min-width: 0; padding: 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--glass-bg); color: var(--ink); font: 14px var(--sans); }
+.quicklinks-row button { min-height: 39px; }
+#quicklinks-add { margin-top: 18px; }
+#quicklinks-error { color: var(--accent); font-size: 13px; margin-top: 12px; }
+.quicklink-icon { color: #292521; font: 700 14px var(--sans); }
+.quicklink-label { overflow: hidden; text-overflow: ellipsis; }
+.quicklinks-empty { color: var(--ink-soft); font-size: 12px; white-space: nowrap; }
+@media (max-width: 520px) { .quicklinks-row { grid-template-columns: 1fr auto; } .quicklinks-row label:nth-child(2) { grid-column: 1 / -1; grid-row: 2; } }

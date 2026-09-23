@@ -1,0 +1,42 @@
+(() => {
+  const check = (value, message) => { if (!value) throw Error(message); };
+  const el = id => document.getElementById(id);
+  const grid = document.querySelector('.quicklinks-grid');
+  const original = grid.textContent;
+  el('quicklinks-edit').click();
+  check(el('quicklinks-dialog').open, 'Editor opens');
+  el('quicklinks-add').click();
+  let row = el('quicklinks-rows').lastElementChild;
+  row.querySelector('[data-field="name"]').value = '<My project>';
+  row.querySelector('[data-field="url"]').value = 'javascript:alert(1)';
+  el('quicklinks-save').click();
+  check(el('quicklinks-dialog').open && el('quicklinks-error').textContent, 'Unsafe scheme rejected');
+  row.querySelector('[data-field="url"]').value = 'example.com/project';
+  el('quicklinks-save').click();
+  check(!el('quicklinks-dialog').open, 'Save closes editor');
+  check(grid.lastElementChild.href === 'https://example.com/project', 'Bare domain normalized');
+  check(grid.lastElementChild.querySelector('.quicklink-label').textContent === '<My project>', 'Name rendered literally');
+  check(JSON.parse(localStorage.getItem('today-quick-links')).at(-1).name === '<My project>', 'Links persisted');
+  window.refreshLocalDashboard();
+  check(grid.lastElementChild.href === 'https://example.com/project', 'Refresh keeps links');
+  el('quicklinks-edit').click();
+  el('quicklinks-rows').lastElementChild.querySelector('button').click();
+  el('quicklinks-cancel').click();
+  check(grid.lastElementChild.href === 'https://example.com/project', 'Cancel discards removal');
+  el('quicklinks-edit').click();
+  for (const button of [...el('quicklinks-rows').querySelectorAll('button')]) button.click();
+  el('quicklinks-save').click();
+  check(grid.querySelector('.quicklinks-empty'), 'Empty links still editable');
+  el('quicklinks-edit').click();
+  for (let i = 0; i < 30; i++) {
+    el('quicklinks-add').click(); row = el('quicklinks-rows').lastElementChild;
+    row.querySelector('[data-field="name"]').value = `Project ${i + 1}`;
+    row.querySelector('[data-field="url"]').value = `https://example.com/${i}`;
+  }
+  el('quicklinks-save').click();
+  check(grid.querySelectorAll('a').length === 30, 'Thirty links supported');
+  check(document.documentElement.scrollWidth <= innerWidth, 'Links do not expand dashboard');
+  el('quicklinks-edit').click();
+  localStorage.removeItem('today-quick-links');
+  return 'PASS: quick-link editing, safe URLs, persistence, cancellation, empty list and thirty links';
+})();
