@@ -81,10 +81,8 @@ final class UpdateNetwork: NSObject, URLSessionTaskDelegate, @unchecked Sendable
         busy = true
         defer { busy = false }
         do {
-            guard TodayPaths.portable, let project = TodayPaths.project,
-                  Bundle.main.bundleURL.standardizedFileURL == project.appendingPathComponent("Today.app").standardizedFileURL else {
-                throw TodayUpdateError("Open Today.app directly from your coworker folder to install updates. The development app must be rebuilt from source.")
-            }
+            if let issue = TodayPaths.updateInstallationIssue { throw TodayUpdateError(issue) }
+            guard let project = TodayPaths.project else { throw TodayUpdateError("Choose your Today folder before updating.") }
             try TodayUpdateFiles.requireProject(project)
             try TodayUpdateFiles.requireUnmodified(project)
             status = "Downloading Today \(release.version)…"
@@ -115,7 +113,7 @@ struct TodayUpdateSettings: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Updates").font(.headline)
-            Text("Today \(updater.version)").font(.caption).foregroundStyle(.secondary)
+            Text("Today \(updater.version) · Build \(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—")").font(.caption).foregroundStyle(.secondary)
             HStack {
                 Button("Check for updates") { Task { await updater.check() } }.disabled(updater.busy || updater.feed.isEmpty)
                 if updater.busy { ProgressView().controlSize(.small) }
@@ -125,7 +123,19 @@ struct TodayUpdateSettings: View {
             Text("Checks on launch and every six hours while Today is open. Installation always waits for you.").font(.caption).foregroundStyle(.secondary)
             if let release = updater.available {
                 Text(release.notes).font(.callout)
-                Button("Install update and restart") { Task { await updater.install() } }.disabled(updater.busy || !TodayPaths.portable)
+                if let issue = TodayPaths.updateInstallationIssue {
+                    Label("Locate this Today installation", systemImage: "folder.badge.questionmark").font(.headline)
+                    Text(issue).font(.callout).fixedSize(horizontal: false, vertical: true)
+                    if TodayPaths.portable {
+                        Button("Locate Today installation…") {
+                            TodayPaths.chooseProject()
+                            updater.objectWillChange.send()
+                        }
+                        if let project = TodayPaths.project { Text(project.path).font(.caption).foregroundStyle(.secondary).textSelection(.enabled) }
+                    }
+                } else {
+                    Button("Install update and restart") { Task { await updater.install() } }.disabled(updater.busy)
+                }
                 Text("Your existing folder is backed up beside Today. Personal data and custom/ files are kept. Changes made directly in dashboard/ must be migrated first.").font(.caption).foregroundStyle(.secondary)
             }
             if !updater.status.isEmpty { Text(updater.status).font(.caption).textSelection(.enabled) }
