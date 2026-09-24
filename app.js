@@ -964,7 +964,8 @@ function renderMail() {
   const list = document.getElementById("mail-list");
   if (!list) return;
   const mail = DATA.mail || {};
-  const threads = groupMailThreads(mail.items || []);
+  const mailItems = (mail.items || []).filter(item => !(mail.stickyNotesEnabled && typeof item.stickyBody === "string"));
+  const threads = groupMailThreads(mailItems);
   document.getElementById("mail-title").textContent = "Today’s emails";
   list.replaceChildren();
   const openMail = document.getElementById("mail-open-app");
@@ -972,7 +973,7 @@ function renderMail() {
   const note = document.createElement("p");
   note.className = "mail-status";
   note.textContent = mail.status || (mail.updatedAt
-    ? `${mail.label} · ${threads.length} conversation${threads.length === 1 ? "" : "s"} · ${(mail.items || []).length} messages today · Updated ${new Date(mail.updatedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
+    ? `${mail.label} · ${threads.length} conversation${threads.length === 1 ? "" : "s"} · ${mailItems.length} messages today · Updated ${new Date(mail.updatedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`
     : "Connect Apple Mail in Settings.");
   list.append(note);
   function mailRow(item, isRead = item.isRead) {
@@ -1023,7 +1024,7 @@ function renderMail() {
     group.append(details);
     list.append(group);
   }
-  if (mail.updatedAt && !mail.status && !(mail.items || []).length) {
+  if (mail.updatedAt && !mail.status && !mailItems.length) {
     const empty = document.createElement("p");
     empty.className = "empty-state";
     empty.textContent = "No emails received today.";
@@ -1424,12 +1425,13 @@ function initAutoRefresh() {
 }
 
 function stickyNoteId(note) {
-  return `${note.ts || ""}-${note.from || ""}-${note.text.length}`;
+  return note.id || `${note.ts || ""}-${note.from || ""}-${note.text.length}`;
 }
 
 function getDismissedNoteIds() {
   try {
-    return JSON.parse(localStorage.getItem("dashboard-dismissed-notes") || "[]");
+    const ids = JSON.parse(localStorage.getItem("dashboard-dismissed-notes") || "[]");
+    return Array.isArray(ids) ? ids : [];
   } catch {
     return [];
   }
@@ -1439,7 +1441,7 @@ function addDismissedNoteId(id) {
   try {
     let ids = getDismissedNoteIds();
     ids.push(id);
-    if (ids.length > 30) ids = ids.slice(-30);
+    ids = [...new Set(ids)];
     localStorage.setItem("dashboard-dismissed-notes", JSON.stringify(ids));
   } catch {}
 }
@@ -1456,7 +1458,22 @@ function renderStickyNotes() {
 
   // Accept both the old singular `stickyNote` shape and the new plural
   // `stickyNotes` array, so cached data mid-transition still renders.
-  const raw = DATA.stickyNotes || (DATA.stickyNote ? [DATA.stickyNote] : []);
+  let raw = typeof DATA.mail?.stickyNotesEnabled === "boolean" ? [] : DATA.stickyNotes || (DATA.stickyNote ? [DATA.stickyNote] : []);
+  const mail = DATA.mail || {};
+  if (mail.stickyNotesEnabled && mail.stickyScope) {
+    const key = "today-email-notes:" + mail.stickyScope;
+    let cached = [];
+    try { const saved = JSON.parse(localStorage.getItem(key) || "[]"); if (Array.isArray(saved)) cached = saved.filter(n => n && typeof n.id === "string" && typeof n.text === "string"); } catch {}
+    const notes = new Map(cached.map(n => [n.id, n]));
+    for (const item of mail.items || []) {
+      if (typeof item.stickyBody !== "string") continue;
+      const id = key + ":" + (item.messageID || item.id);
+      notes.set(id, {id, text: item.stickyBody.trim() || "(An empty note)", from: item.sender.replace(/\s*<[^>]+>\s*$/, "").replace(/^"|"$/g, ""), ts: item.receivedAt});
+    }
+    raw = [...notes.values()].slice(-100);
+    try { localStorage.setItem(key, JSON.stringify(raw)); } catch {}
+  }
+
   const dismissed = new Set(getDismissedNoteIds());
   const notes = raw.filter((n) => n && n.text && !dismissed.has(stickyNoteId(n)));
   if (notes.length === 0) return;
@@ -1464,7 +1481,7 @@ function renderStickyNotes() {
   const positionCount = 5;
   const usedPositions = new Set();
 
-  notes.forEach((note) => {
+  notes.slice(0, window.innerWidth <= 700 ? 1 : 5).forEach((note) => {
     const noteId = stickyNoteId(note);
     let position = hashString(noteId) % positionCount;
     // Nudge to an unused slot so simultaneous notes don't stack on each other.
@@ -1485,10 +1502,32 @@ function renderStickyNotes() {
     el.querySelector(".sticky-note-text").textContent = note.text;
     el.querySelector(".sticky-note-from").textContent = note.from ? `— ${note.from}` : "";
     el.querySelector(".sticky-note-dismiss").onclick = () => {
-      el.remove();
       addDismissedNoteId(noteId);
+      renderStickyNotes();
+    };
+    let savedPosition;
+    try { savedPosition = JSON.parse(localStorage.getItem("today-note-position:" + noteId)); } catch {}
+    const place = (x, y) => {
+      el.style.left = Math.max(8, Math.min(x, window.innerWidth - el.offsetWidth - 8)) + "px";
+      el.style.top = Math.max(8, Math.min(y, window.innerHeight - 80)) + "px";
+      el.style.right = "auto"; el.style.bottom = "auto";
     };
     container.appendChild(el);
+    if (window.innerWidth > 700 && savedPosition && Number.isFinite(savedPosition.x) && Number.isFinite(savedPosition.y)) place(savedPosition.x, savedPosition.y);
+    const handle = el.querySelector(".sticky-note-from");
+    handle.title = "Drag to move note";
+    handle.onpointerdown = event => {
+      if (window.innerWidth <= 700 || event.button !== 0) return;
+      const rect = el.getBoundingClientRect();
+      const dx = event.clientX - rect.left, dy = event.clientY - rect.top;
+      handle.setPointerCapture(event.pointerId);
+      handle.onpointermove = e => place(e.clientX - dx, e.clientY - dy);
+      handle.onpointerup = () => {
+        try { localStorage.setItem("today-note-position:" + noteId, JSON.stringify({x: parseFloat(el.style.left), y: parseFloat(el.style.top)})); } catch {}
+        handle.onpointermove = null; handle.onpointerup = null;
+      };
+      handle.onpointercancel = () => { handle.onpointermove = null; handle.onpointerup = null; };
+    };
   });
 }
 
@@ -1509,6 +1548,7 @@ window.refreshLocalDashboard = function () {
   renderHeroRhythm();
   renderOnboardingPlan();
   renderMail();
+  renderStickyNotes();
   renderVerse();
   initWeather();
   document.querySelectorAll("details").forEach(el => { el.open = expanded.has(detailKey(el)); });

@@ -1695,3 +1695,8 @@ a.asana-task:hover { color: var(--accent); }
 :root:not([data-design="retro"]) .page .mail-item { padding-inline: 14px; }
 :root:not([data-design="retro"]) .page .mail-item-unread::before,
 :root:not([data-design="retro"]) .page .mail-item-unread::after { inset-inline: 0; }
+
+.sticky-note-text { white-space: pre-wrap; overflow-wrap: anywhere; max-height: min(300px, 45vh); overflow-y: auto; }
+.sticky-note-from { cursor: grab; touch-action: none; }
+:root[data-design="retro"] .sticky-note { border: 2px solid #211c2b; box-shadow: 5px 5px 0 #211c2b; background: #fff3a8; }
+:root:is([data-design="studio"], [data-design="editorial"]) .sticky-note { background: #fff3bb; }

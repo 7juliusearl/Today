@@ -59,7 +59,7 @@ html = html.replace('<div class="glass-card bento-comingup"', '''<div class="gla
 </div>
 <div class="glass-card bento-comingup"''')
 html = html.replace('</head>',  '''<style>
-.bento-slack, .sticky-notes { display: none !important; }
+.bento-slack { display: none !important; }
 .bento-mail, .bento-comingup { grid-column: span 6; }
 .bento-mail { padding: 30px; }
 .mail-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }

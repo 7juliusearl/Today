@@ -64,6 +64,17 @@ import JavaScriptCore
         try { run(['mark-read', choice, JSON.stringify({id:'42', messageID:'different-id'})]); } catch (_) { rejected = true; }
         if (!rejected || writes !== 1) throw Error('Identity mismatch must not modify Mail');
         """)
+        context.evaluateScript("""
+        let bodyReads = 0;
+        Object.defineProperty(rows[1], 'content', {get: () => () => {bodyReads++; return '<b>You got this!</b>';}});
+        rows[1].subject = () => '  StIcKy NoTe  ';
+        rows[2].subject = () => 'Re: sticky note';
+        const stickyResult = JSON.parse(run(['read', choice, 'true']));
+        const note = stickyResult.items.find(item => item.id === '1');
+        if (note.stickyBody !== '<b>You got this!</b>' || bodyReads !== 1) throw Error('Only matching bodies should be read');
+        const disabled = JSON.parse(run(['read', choice, 'false']));
+        if (disabled.items.some(item => item.stickyBody !== undefined) || bodyReads !== 1) throw Error('Disabled notes must not read bodies');
+        """)
         context.evaluateScript("rows.length = 0")
         assert(context.evaluateScript("JSON.parse(run(['read', JSON.stringify({account: 'account-one', mailbox: 'INBOX'})])).items.length")!.toInt32() == 0)
         context.setObject(try String(contentsOfFile: "app.js", encoding: .utf8), forKeyedSubscript: "appSource" as NSString)

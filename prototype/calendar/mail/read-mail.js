@@ -9,7 +9,7 @@ function threadReferences(headers) {
   return [...new Set(ids)];
 }
 
-// Executed by osascript inside the local app. Never reads message bodies. Only mark-read changes a message, after an explicit open.
+// Reads bodies only for opted-in sticky note emails. Only mark-read changes a message after an explicit open.
 function run(argv) {
   const mail = Application('Mail');
   const action = argv[0];
@@ -55,7 +55,11 @@ function run(argv) {
     const attachmentCount = message.mailAttachments.length;
     let references = [];
     try { references = threadReferences(message.allHeaders()); } catch (_) { /* Keep unthreaded if headers aren't available. */ }
-    items.push({ threadReferences: references, attachmentCount, isRead: message.readStatus(), id: String(message.id()), messageID: message.messageId() || '',
+    let stickyBody;
+    if (argv[2] === 'true' && String(message.subject() || '').trim().toLowerCase() === 'sticky note') {
+      try { stickyBody = String(message.content() || '').slice(0, 4000); } catch (_) { /* Leave it in ordinary mail if unavailable. */ }
+    }
+    items.push({ stickyBody, threadReferences: references, attachmentCount, isRead: message.readStatus(), id: String(message.id()), messageID: message.messageId() || '',
       subject: String(message.subject() || '(No subject)').slice(0, 500),
       sender: String(message.sender() || '').slice(0, 300), receivedAt: date.toISOString() });
   }

@@ -17,12 +17,28 @@ struct MailItem: Codable {
     let receivedAt: String
     var isRead: Bool?
     let threadReferences: [String]?
+    let stickyBody: String?
 }
 struct MailSnapshot: Codable {
     var items: [MailItem] = []
+    var stickyNotesEnabled: Bool = false
+    var stickyScope: String?
     var label: String?
     var status: String?
     var updatedAt: String?
+}
+
+// The reader returns mail data only; app preferences are applied after decoding.
+extension MailSnapshot {
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        items = try values.decodeIfPresent([MailItem].self, forKey: .items) ?? []
+        stickyNotesEnabled = try values.decodeIfPresent(Bool.self, forKey: .stickyNotesEnabled) ?? false
+        stickyScope = try values.decodeIfPresent(String.self, forKey: .stickyScope)
+        label = try values.decodeIfPresent(String.self, forKey: .label)
+        status = try values.decodeIfPresent(String.self, forKey: .status)
+        updatedAt = try values.decodeIfPresent(String.self, forKey: .updatedAt)
+    }
 }
 
 struct MailReadError: LocalizedError {
@@ -37,9 +53,9 @@ struct MailReadError: LocalizedError {
 }
 
 // Mail automation runs in a separate process so a busy Mail app cannot freeze the UI.
-func runMailReader(action: String, choice: MailboxChoice? = nil) async throws -> Data {
+func runMailReader(action: String, choice: MailboxChoice? = nil, stickyNotes: Bool = false) async throws -> Data {
     let selection = try choice.map { String(decoding: try JSONEncoder().encode($0), as: UTF8.self) } ?? "{}"
-    return try await runLocalAutomation(resource: "read-mail", arguments: [action, selection])
+    return try await runLocalAutomation(resource: "read-mail", arguments: [action, selection, stickyNotes ? "true" : "false"])
 }
 
 func runLocalAutomation(resource: String, arguments: [String]) async throws -> Data {
@@ -71,6 +87,14 @@ func runLocalAutomation(resource: String, arguments: [String]) async throws -> D
 }
 
 @MainActor final class MailModel: ObservableObject {
+    @Published var receiveStickyNotes = UserDefaults.standard.object(forKey: "receiveStickyNotes") as? Bool ?? true {
+        didSet {
+            UserDefaults.standard.set(receiveStickyNotes, forKey: "receiveStickyNotes")
+            snapshot.stickyNotesEnabled = enabled && receiveStickyNotes
+            onChange?()
+            refresh(force: true)
+        }
+    }
     @Published var choices: [MailboxChoice] = []
     @Published var selectedID = ""
     @Published private(set) var enabled = UserDefaults.standard.bool(forKey: "mailEnabled")
@@ -130,8 +154,10 @@ func runLocalAutomation(resource: String, arguments: [String]) async throws -> D
                 busy = false
             }
             do {
-                var result = try JSONDecoder().decode(MailSnapshot.self, from: await runMailReader(action: "read", choice: choice))
+                var result = try JSONDecoder().decode(MailSnapshot.self, from: await runMailReader(action: "read", choice: choice, stickyNotes: receiveStickyNotes))
                 guard enabled && current == generation else { return }
+                result.stickyNotesEnabled = receiveStickyNotes
+                result.stickyScope = choice.id
                 result.label = choice.label
                 result.updatedAt = ISO8601DateFormatter().string(from: Date())
                 snapshot = result
@@ -205,6 +231,9 @@ struct MailSettingsView: View {
                 Button("Use mailbox") { mail.useSelection() }.disabled(mail.busy || mail.selectedID.isEmpty)
             }
             Text(mail.status).font(.caption).foregroundStyle(.secondary)
+            Toggle("Receive sticky notes", isOn: $mail.receiveStickyNotes)
+            Text("Emails titled ‘sticky note’ (any capitalization) become paper notes on your dashboard. Today reads the body only for matching notes. They stay in Apple Mail but are hidden from Today’s emails while this is on. Turning this off shows them as normal emails. Notes may also appear on your paired devices.")
+                .font(.caption).foregroundStyle(.secondary)
             Text("Mail connection changes apply immediately.").font(.caption).foregroundStyle(.secondary)
         }
     }
