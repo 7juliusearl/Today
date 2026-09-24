@@ -9,7 +9,7 @@ function threadReferences(headers) {
   return [...new Set(ids)];
 }
 
-// Executed by osascript inside the local app. Never reads message bodies or writes mail.
+// Executed by osascript inside the local app. Never reads message bodies. Only mark-read changes a message, after an explicit open.
 function run(argv) {
   const mail = Application('Mail');
   const action = argv[0];
@@ -31,6 +31,16 @@ function run(argv) {
   const choice = JSON.parse(argv[1]);
   const account = mail.accounts.byId(choice.account);
   const box = account.mailboxes.byName(choice.mailbox);
+  if (action === 'mark-read') {
+    const target = JSON.parse(argv[2]);
+    if (!/^\d+$/.test(target.id) || !target.messageID) throw Error('Invalid message identity');
+    const message = box.messages.byId(Number(target.id));
+    if (String(message.messageId()) !== target.messageID) throw Error('Message identity changed');
+    message.readStatus = true;
+    if (!message.readStatus()) throw Error('Mail did not confirm read status');
+    return JSON.stringify({ isRead: true });
+  }
+  if (action !== 'read') throw Error('Unknown Mail action');
   const start = new Date();
   start.setHours(0, 0, 0, 0);
   const end = new Date(start);

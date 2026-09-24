@@ -49,6 +49,21 @@ import JavaScriptCore
         assert(items.last?["id"] as? String == "0", "Include midnight today, exclude yesterday and tomorrow")
         assert(items.first?["isRead"] as? Bool == false, "Preserve unread status from Mail")
         assert(items.last?["isRead"] as? Bool == true, "Preserve read status from Mail")
+        context.evaluateScript("""
+        let marked = false;
+        let writes = 0;
+        const targetMessage = { messageId: () => 'exact-id',
+          get readStatus() { return () => marked; },
+          set readStatus(value) { marked = value; writes++; }
+        };
+        inbox.messages.byId = id => { if (id !== 42) throw Error('Wrong message'); return targetMessage; };
+        const choice = JSON.stringify({account:'account-one', mailbox:'INBOX'});
+        const confirmed = JSON.parse(run(['mark-read', choice, JSON.stringify({id:'42', messageID:'exact-id'})]));
+        if (!confirmed.isRead || !marked || writes !== 1) throw Error('Read status must be confirmed');
+        let rejected = false;
+        try { run(['mark-read', choice, JSON.stringify({id:'42', messageID:'different-id'})]); } catch (_) { rejected = true; }
+        if (!rejected || writes !== 1) throw Error('Identity mismatch must not modify Mail');
+        """)
         context.evaluateScript("rows.length = 0")
         assert(context.evaluateScript("JSON.parse(run(['read', JSON.stringify({account: 'account-one', mailbox: 'INBOX'})])).items.length")!.toInt32() == 0)
         context.setObject(try String(contentsOfFile: "app.js", encoding: .utf8), forKeyedSubscript: "appSource" as NSString)

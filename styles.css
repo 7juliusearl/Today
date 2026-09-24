@@ -351,7 +351,7 @@ body:has(.rhythm-week-dialog[open]) { overflow: hidden; }
 
 .quicklink:hover {
   background: var(--accent-soft);
-  border-color: rgba(232, 73, 29, 0.25);
+  border-color: var(--accent-glow);
   transform: translateY(-1px);
 }
 
@@ -1525,3 +1525,173 @@ a.asana-task:hover { color: var(--accent); }
 .quicklink-label { overflow: hidden; text-overflow: ellipsis; }
 .quicklinks-empty { color: var(--ink-soft); font-size: 12px; white-space: nowrap; }
 @media (max-width: 520px) { .quicklinks-row { grid-template-columns: 1fr auto; } .quicklinks-row label:nth-child(2) { grid-column: 1 / -1; grid-row: 2; } }
+
+/* Design families share layout and behavior, with distinct surfaces and typography. */
+.design-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 22px 0; }
+.design-options button { min-width: 0; padding: 10px; border: 2px solid var(--line); border-radius: 14px; color: var(--ink); background: var(--glass-bg); cursor: pointer; text-align: left; font: 12px var(--sans); }
+.design-options button[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); }
+.design-options strong, .design-options button > span:last-child { display: block; margin-top: 9px; }
+.design-options strong { font-size: 15px; }
+.design-options button > span:last-child { color: var(--ink-soft); line-height: 1.4; }
+.design-preview { height: 76px; display: grid; grid-template-columns: 1.6fr 1fr; gap: 5px; padding: 8px; background: #242329; }
+.design-preview i { border: 1px solid #ffffff40; background: #ffffff20; }
+.design-preview i:first-child { grid-row: span 2; }
+.preview-glass { border-radius: 12px; background: linear-gradient(135deg,#8e4c31,#222126); }
+.preview-glass i { border-radius: 8px; }
+.preview-studio { border-radius: 4px; background: #141b28; }
+.preview-studio i { border-radius: 2px; border-top: 3px solid #658bff; }
+.preview-editorial { background: #eae1d2; }
+.preview-editorial i { border: 1px solid #806950; background: #f8f2e8; }
+.design-colors { display: flex; gap: 24px; flex-wrap: wrap; }
+.design-colors label { display: flex; flex-direction: column; gap: 10px; font-size: 14px; }
+.design-colors input { width: 90px; height: 44px; border: 1px solid var(--line); border-radius: 8px; background: var(--glass-bg); cursor: pointer; }
+#design-error { color: var(--accent); }
+#design-save, .bento-focus button.focus-primary { background: var(--accent-fill, var(--accent)); color: var(--accent-on-fill, #fff); }
+:root[data-design="studio"] { --bg: #edf1f7; --glass-bg: #fafbfd; --glass-bg-strong: #e8edf5; --glass-border: #cbd3df; }
+:root[data-design="studio"][data-theme="dark"] { --bg: #10151e; --glass-bg: #1b2330; --glass-bg-strong: #252f3e; --glass-border: #354153; }
+:root[data-design="editorial"] { --bg: #ede7dc; --glass-bg: #f8f4ec; --glass-bg-strong: #eae2d5; --glass-border: #d4c9b7; }
+:root[data-design="editorial"][data-theme="dark"] { --bg: #191714; --glass-bg: #26231e; --glass-bg-strong: #332f28; --glass-border: #484135; }
+@media (prefers-color-scheme: dark) {
+  :root[data-design="studio"]:not([data-theme="light"]) { --bg: #10151e; --glass-bg: #1b2330; --glass-bg-strong: #252f3e; --glass-border: #354153; }
+  :root[data-design="editorial"]:not([data-theme="light"]) { --bg: #191714; --glass-bg: #26231e; --glass-bg-strong: #332f28; --glass-border: #484135; }
+}
+:root[data-design="studio"] .page .glass-card { border-radius: 10px; backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: 0 4px 16px #0000000d; border-top: 3px solid var(--accent-soft); }
+:root[data-design="studio"] .glass-card::before, :root[data-design="editorial"] .glass-card::before { display: none; }
+:root[data-design="studio"] .ambient-glow { display: none; }
+:root[data-design="studio"] .grain { display: none; }
+:root[data-design="editorial"] .page .glass-card { border-radius: 3px; backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: 3px 3px 0 var(--line); }
+:root[data-design="editorial"] .greeting, :root[data-design="editorial"] .panel-title, :root[data-design="editorial"] .verse-text { font-family: Georgia, "Times New Roman", serif; font-weight: 500; letter-spacing: -.025em; }
+:root[data-design="editorial"] .ambient-glow { display: none; }
+:root[data-design="editorial"] .hero { border-bottom: 3px solid var(--accent); }
+:root[data-design="editorial"] .eyebrow { font-family: var(--mono); letter-spacing: 1.5px; }
+:root[data-design="editorial"] .quicklink { border-radius: 3px; }
+
+@media (max-width: 520px) { .design-options { grid-template-columns: 1fr; } .design-preview { height: 48px; } }
+
+/* Solid design surfaces: no frosted controls, sheen, or gradient overlays. */
+:root:is([data-design="studio"], [data-design="editorial"], [data-design="retro"]) :is(.icon-btn, .theme-toggle, .sections-button, .glass-card) {
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+:root:is([data-design="studio"], [data-design="editorial"], [data-design="retro"]) :is(.icon-btn, .theme-toggle, .sections-button) { box-shadow: none; }
+:root:is([data-design="studio"], [data-design="editorial"], [data-design="retro"]) .rhythm-week-dialog::backdrop { backdrop-filter: none; -webkit-backdrop-filter: none; }
+:root:is([data-design="studio"], [data-design="editorial"], [data-design="retro"]) .page .glass-card { background: var(--glass-bg); }
+:root:is([data-design="studio"], [data-design="editorial"], [data-design="retro"]) .page :is(.hero, .bento-verse) { background: color-mix(in srgb, var(--accent-2) 7%, var(--glass-bg)); }
+:root:is([data-design="studio"], [data-design="editorial"], [data-design="retro"]) .page :is(.has-countdown, .bento-focus.is-active) { background: var(--glass-bg-strong); }
+:root:is([data-design="studio"], [data-design="editorial"], [data-design="retro"]) .focus-mode .bento-focus { background: var(--glass-bg-strong); }
+:root:is([data-design="studio"], [data-design="editorial"], [data-design="retro"]) :is(.mail-item-unread, .upcoming-day-group)::before,
+:root:is([data-design="studio"], [data-design="editorial"], [data-design="retro"]) .mail-item-unread::after { display: none; }
+:root:is([data-design="studio"], [data-design="editorial"], [data-design="retro"]) .mail-item-unread { background: var(--glass-bg-strong); border-left: 3px solid var(--accent); }
+:root:is([data-design="studio"], [data-design="editorial"], [data-design="retro"]) .upcoming-day-group { background: color-mix(in srgb, var(--accent-2) calc(var(--day-glow, 0) * 10%), var(--glass-bg)); }
+:root:is([data-design="studio"], [data-design="editorial"], [data-design="retro"]) .plan-progress-fill { background: var(--accent); }
+.preview-studio i { background: #293344; }
+
+/* Retro desktop: inked frames, solid color, graph paper and hard shadows. */
+:root[data-design="retro"] {
+  --bg: #eddfd0; --glass-bg: #fff5e7; --glass-bg-strong: #f2e5d4;
+  --glass-border: #272031; --retro-outline: #272031; --retro-shadow: #272031;
+  --retro-grid: #27203124; --retro-yellow: #ffcf35;
+  --ink: #211c2b; --ink-soft: #554a5d; --ink-faint: #786b80; --line: #27203130;
+}
+:root[data-design="retro"][data-theme="dark"] {
+  --bg: #211d2c; --glass-bg: #30293d; --glass-bg-strong: #40334e;
+  --glass-border: #d6bce7; --retro-outline: #d6bce7; --retro-shadow: #110e19;
+  --retro-grid: #d6bce71c; --retro-yellow: #e7af30;
+  --ink: #fff4e2; --ink-soft: #d1bfd9; --ink-faint: #aa96b4; --line: #d6bce738;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-design="retro"]:not([data-theme="light"]) {
+    --bg: #211d2c; --glass-bg: #30293d; --glass-bg-strong: #40334e;
+    --glass-border: #d6bce7; --retro-outline: #d6bce7; --retro-shadow: #110e19;
+    --retro-grid: #d6bce71c; --retro-yellow: #e7af30;
+    --ink: #fff4e2; --ink-soft: #d1bfd9; --ink-faint: #aa96b4; --line: #d6bce738;
+  }
+}
+:root[data-design="retro"] body { background-image: linear-gradient(var(--retro-grid) 1px, transparent 1px), linear-gradient(90deg, var(--retro-grid) 1px, transparent 1px); background-size: 44px 44px; }
+:root[data-design="retro"] :is(.ambient-glow, .grain) { display: none; }
+:root[data-design="retro"] .page .glass-card { border: 2px solid var(--retro-outline); border-radius: 6px; box-shadow: 5px 5px 0 var(--retro-shadow); }
+:root[data-design="retro"] .page .glass-card:not(.quicklinks) { padding-top: 30px; }
+:root[data-design="retro"] .page .glass-card::before { display: block; inset: 0 0 auto; height: 11px; background: var(--accent-2); border-bottom: 2px solid var(--retro-outline); }
+:root[data-design="retro"] .page .quicklinks::before { display: none; }
+:root[data-design="retro"] .page .hero { background: color-mix(in srgb, var(--accent-fill) 16%, var(--glass-bg)); }
+:root[data-design="retro"] .page .bento-verse { background: color-mix(in srgb, var(--accent-2) 24%, var(--glass-bg)); }
+:root[data-design="retro"] .page .bento-focus { background: color-mix(in srgb, var(--retro-yellow) 20%, var(--glass-bg)); }
+:root[data-design="retro"] .page .bento-focus::before { background: var(--retro-yellow); }
+:root[data-design="retro"] .greeting { font-weight: 900; letter-spacing: -.05em; }
+:root[data-design="retro"] :is(.eyebrow, .panel-title) { font-family: var(--mono); }
+:root[data-design="retro"] .panel-title { font-weight: 700; letter-spacing: -.06em; }
+:root[data-design="retro"] :is(.icon-btn, .theme-toggle, .sections-button, .quicklink, .quicklinks-edit, .focus-actions button, .focus-form button) { border: 2px solid var(--retro-outline); border-radius: 5px; box-shadow: 2px 2px 0 var(--retro-shadow); }
+:root[data-design="retro"] .quicklink { background: var(--glass-bg); }
+:root[data-design="retro"] .rhythm-week-dialog { border: 2px solid var(--retro-outline); border-radius: 8px; box-shadow: 7px 7px 0 var(--retro-shadow); }
+:root[data-design="retro"] .rhythm-week-header { border-bottom: 2px solid var(--retro-outline); background: var(--glass-bg); }
+:root[data-design="retro"] .upcoming-day-group { border: 1px solid var(--retro-outline); border-radius: 4px; }
+.preview-retro { background: #eddfd0; border: 1px solid #272031; border-radius: 0; gap: 7px; }
+.preview-retro i { background: #ef98cc; border: 1px solid #272031; box-shadow: 2px 2px 0 #272031; }
+.preview-retro i:first-child { background: #a64de4; }
+.preview-retro i:last-child { background: #ffcf35; }
+@media (min-width: 1000px) and (min-height: 650px) {
+  :root[data-design="retro"] body:not(.focus-mode) .bento-focus .eyebrow { display: none; }
+  :root[data-design="retro"] body:not(.focus-mode) .bento-focus .panel-head { margin-bottom: 8px; }
+}
+
+/* Saturated Retro panels stay colorful in both appearances. */
+:root[data-design="retro"] .page .glass-card {
+  --retro-panel: var(--accent-2);
+  --ink: var(--retro-secondary-ink); --ink-soft: var(--ink); --ink-faint: color-mix(in srgb, var(--ink) 65%, var(--retro-panel));
+  --accent: var(--ink); --accent-soft: color-mix(in srgb, var(--ink) 12%, var(--retro-panel));
+  --glass-bg: var(--retro-panel); --glass-bg-strong: color-mix(in srgb, var(--retro-panel) 90%, var(--ink));
+  --line: color-mix(in srgb, var(--ink) 25%, var(--retro-panel));
+  --retro-outline: #211c2b; --retro-shadow: #211c2b;
+  color: var(--ink); background: var(--retro-panel);
+}
+:root[data-design="retro"] .page :is(.hero, .bento-comingup, .bento-plan) { --retro-panel: var(--accent-fill); --ink: var(--retro-primary-ink); }
+:root[data-design="retro"] .page :is(.happening-now, .bento-focus) { --retro-panel: #ffcf35; --ink: #111111; }
+:root[data-design="retro"] .page .quicklinks { --retro-panel: #fff5e7; --ink: #211c2b; }
+:root[data-design="retro"] .page .glass-card::before { background: #fff5e7; }
+:root[data-design="retro"] .page .bento-focus::before { background: #fff5e7; }
+:root[data-design="retro"] .page .upcoming-day-group { background: var(--retro-panel); }
+:root[data-design="retro"] .page :is(.quicklinks-edit, .focus-actions button, .focus-settings-button) { color: var(--ink); }
+
+/* Retro highlights are inset desktop windows, not floating glass overlays. */
+:root[data-design="retro"] .page :is(.schedule-asana, .mail-item-unread, .upcoming-day-group) {
+  --ink: #211c2b; --ink-soft: #51445f; --ink-faint: #746681;
+  --accent: #4f2584; --accent-soft: #e4d5f3; --line: #211c2b35;
+  --glass-bg: #fff8df; --glass-bg-strong: #f1e4c6;
+  position: relative; background: #fff8df; color: var(--ink);
+  border: 2px solid #211c2b; border-radius: 2px;
+  box-shadow: 4px 4px 0 #211c2b; padding: 12px;
+  font-family: var(--mono); margin-right: 5px; width: auto;
+}
+:root[data-design="retro"] .page :is(.schedule-asana, .upcoming-day-group) > .upcoming-day-date {
+  margin: -12px -12px 12px; padding: 10px 12px;
+  background: #ff916b; color: #211c2b; border-bottom: 2px solid #211c2b;
+  font: 700 12px/1.5 var(--mono); letter-spacing: 1px;
+}
+:root[data-design="retro"] .page .schedule-asana > .upcoming-day-date { background: #ffcf35; }
+:root[data-design="retro"] .page .mail-item-unread { width: calc(100% - 5px); padding-top: 38px; margin-bottom: 14px; }
+:root[data-design="retro"] .page .mail-item-unread::before {
+  display: block; content: ""; position: absolute; inset: 0 0 auto;
+  height: 23px; background: #40bddd; border-bottom: 2px solid #211c2b;
+  border-radius: 0; opacity: 1; z-index: 0; pointer-events: none;
+}
+:root[data-design="retro"] .page .mail-item-unread::after {
+  display: block; content: ""; position: absolute; inset: 6px auto auto 10px;
+  width: 9px; height: 9px; padding: 0; border: 1px solid #211c2b;
+  background: #ffcf35; border-radius: 50%; box-shadow: 17px 0 0 #ef98cc;
+  opacity: 1; z-index: 0; -webkit-mask: none; mask: none; pointer-events: none;
+}
+:root[data-design="retro"] .page .mail-item-unread .mail-sender { font-family: var(--mono); font-weight: 700; letter-spacing: -.04em; }
+:root[data-design="retro"] .page :is(.schedule-asana .asana-task, .upcoming-day-group h3, .upcoming-day-group .event-title) { font-family: var(--mono); }
+:root[data-design="retro"] .page .upcoming-day-group + .upcoming-day-group { margin-top: 18px; }
+:root[data-design="retro"] .page :is(.schedule-asana, .mail-item-unread, .upcoming-day-group) :focus-visible { outline: 2px solid #4f2584; outline-offset: 3px; }
+
+/* Keep Retro typography consistent across read/unread and past/upcoming items. */
+:root[data-design="retro"] .page :is(.bento-mail, .bento-schedule, .bento-comingup) {
+  --sans: var(--mono);
+  font-family: var(--mono);
+}
+:root[data-design="retro"] .page .mail-sender { font-family: var(--mono); letter-spacing: -.04em; }
+
+/* Keep mail text inside its highlight even in the compact overview layout. */
+:root:not([data-design="retro"]) .page .mail-item { padding-inline: 14px; }
+:root:not([data-design="retro"]) .page .mail-item-unread::before,
+:root:not([data-design="retro"]) .page .mail-item-unread::after { inset-inline: 0; }

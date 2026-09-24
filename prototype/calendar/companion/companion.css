@@ -30,3 +30,4 @@ button, summary, a { touch-action: manipulation; }
 /* Comfortable editing on touch screens; 16px avoids Safari input zoom. */
 #quicklinks-dialog input { font-size: 16px; min-height: 44px; }
 #quicklinks-dialog button { min-height: 44px; }
+#design-dialog button { min-height: 44px; }

@@ -15,7 +15,7 @@ struct MailItem: Codable {
     let sender: String
     let attachmentCount: Int
     let receivedAt: String
-    let isRead: Bool?
+    var isRead: Bool?
     let threadReferences: [String]?
 }
 struct MailSnapshot: Codable {
@@ -81,6 +81,7 @@ func runLocalAutomation(resource: String, arguments: [String]) async throws -> D
     private var selection: MailboxChoice?
     private var lastAttempt = Date.distantPast
     private var generation = 0
+    private var pendingReads = Set<String>()
 
     init() {
         if let data = UserDefaults.standard.data(forKey: "mailboxChoice"), let choice = try? JSONDecoder().decode(MailboxChoice.self, from: data) {
@@ -152,7 +153,36 @@ func runLocalAutomation(resource: String, arguments: [String]) async throws -> D
         let raw = item.messageID.trimmingCharacters(in: CharacterSet(charactersIn: "<>"))
         guard let encoded = ("<" + raw + ">").addingPercentEncoding(withAllowedCharacters: .alphanumerics),
               let url = URL(string: "message://" + encoded) else { return }
-        NSWorkspace.shared.open(url)
+        guard NSWorkspace.shared.open(url), enabled, let choice = selection else { return }
+        let current = generation
+        let key = "\(current):\(id)"
+        guard pendingReads.insert(key).inserted else { return }
+        Task {
+            defer { pendingReads.remove(key) }
+            do {
+                try await Task.sleep(for: .seconds(3))
+                while busy && enabled && current == generation {
+                    try await Task.sleep(for: .milliseconds(100))
+                }
+                guard enabled && current == generation else { return }
+                busy = true
+                defer { busy = false }
+                let mailbox = String(decoding: try JSONEncoder().encode(choice), as: UTF8.self)
+                let target = String(decoding: try JSONEncoder().encode(["id": item.id, "messageID": item.messageID]), as: UTF8.self)
+                _ = try await runLocalAutomation(resource: "read-mail", arguments: ["mark-read", mailbox, target])
+                guard enabled && current == generation else { return }
+                if let index = snapshot.items.firstIndex(where: { $0.id == item.id && $0.messageID == item.messageID }) {
+                    snapshot.items[index].isRead = true
+                }
+                snapshot.status = nil
+                onChange?()
+            } catch {
+                guard enabled && current == generation else { return }
+                status = "Couldn’t mark this message as read. Try opening it again in Mail."
+                snapshot.status = status
+                onChange?()
+            }
+        }
     }
 }
 
@@ -161,7 +191,7 @@ struct MailSettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Apple Mail").font(.headline)
-            Text("Show today’s mail locally. macOS will ask to allow access to Mail. No messages are sent or changed by refreshing.")
+            Text("Show today’s mail locally. macOS will ask to allow access to Mail. Refreshing never changes messages. Opening an email marks that message as read after a few seconds.")
                 .font(.caption).foregroundStyle(.secondary)
             HStack {
                 Button(mail.busy ? "Working…" : "Connect / reload mailboxes") { mail.connect() }.disabled(mail.busy)

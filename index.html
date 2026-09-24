@@ -33,6 +33,7 @@
       <path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14"></path>
     </svg>
   </button>
+  <button class="icon-btn" id="design-button" type="button" title="Design and colors" aria-label="Design and colors" aria-haspopup="dialog"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><circle cx="8" cy="9" r="1"/><circle cx="13" cy="7" r="1"/><circle cx="17" cy="11" r="1"/><path d="M12 21c-4-5 5-4 1-8-3-2-6 2-9 1"/></svg></button>
   <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Toggle dark mode" aria-pressed="false">
     <span class="theme-toggle-track">
       <span class="theme-toggle-thumb"></span>
@@ -209,6 +210,22 @@
 
 </main>
 
+<dialog class="rhythm-week-dialog" id="design-dialog" aria-labelledby="design-title">
+  <div class="rhythm-week-header"><div><p class="eyebrow">Make Today yours</p><h2 id="design-title">Design &amp; colors</h2></div><button class="rhythm-week-close" id="design-close" type="button" aria-label="Cancel design changes">×</button></div>
+  <div class="rhythm-week-body">
+    <p class="focus-settings-help">Preview a look, then make it your own. Each design remembers its colors on this device.</p>
+    <div class="design-options" role="group" aria-label="Dashboard design">
+      <button type="button" data-design-choice="glass"><span class="design-preview preview-glass" aria-hidden="true"><i></i><i></i><i></i></span><strong>Glow</strong><span>Soft glass and ambient color</span></button>
+      <button type="button" data-design-choice="studio"><span class="design-preview preview-studio" aria-hidden="true"><i></i><i></i><i></i></span><strong>Studio</strong><span>Crisp panels and clean edges</span></button>
+      <button type="button" data-design-choice="editorial"><span class="design-preview preview-editorial" aria-hidden="true"><i></i><i></i><i></i></span><strong>Editorial</strong><span>Serif headlines and paper tones</span></button>
+      <button type="button" data-design-choice="retro"><span class="design-preview preview-retro" aria-hidden="true"><i></i><i></i><i></i></span><strong>Retro</strong><span>Bold frames and playful color</span></button>
+    </div>
+    <div class="design-colors"><label>Accent color<input id="design-accent" type="color"></label><label>Companion color<input id="design-secondary" type="color"></label></div>
+    <p class="focus-settings-help">Accent colors highlight actions and progress. The companion color adds a softer tint. Text shades adjust for readability. All designs work in light and dark mode.</p>
+    <p id="design-error" role="alert"></p>
+  </div>
+  <div class="focus-settings-footer"><button id="design-reset" type="button">Reset this design</button><button id="design-save" type="button">Save design</button></div>
+</dialog>
 <dialog class="rhythm-week-dialog" id="quicklinks-dialog" aria-labelledby="quicklinks-title">
   <div class="rhythm-week-header"><div><p class="eyebrow">Make it yours</p><h2 id="quicklinks-title">Your quick links</h2></div><button class="rhythm-week-close" id="quicklinks-close" type="button" aria-label="Close link editor">×</button></div>
   <div class="rhythm-week-body"><p class="focus-settings-help">Add the places you use most. Saved on this device.</p><div id="quicklinks-rows"></div><button class="quicklinks-edit" id="quicklinks-add" type="button">+ Add link</button><p id="quicklinks-error" role="alert"></p></div>

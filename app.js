@@ -1168,6 +1168,63 @@ function initNativeControls() {
   };
 }
 
+function initDesignThemes() {
+  const root = document.documentElement, dialog = document.getElementById("design-dialog");
+  const defaults = {glass: ["#ff7a45", "#ffb37a"], studio: ["#658bff", "#8fd8d0"], editorial: ["#ac7955", "#d8be95"], retro: ["#a64de4", "#ef98cc"]};
+  const key = "today-design-themes";
+  let saved = {selected: "glass", colors: {}};
+  try {
+    const value = JSON.parse(localStorage.getItem(key));
+    if (value && Object.hasOwn(defaults, value.selected)) {
+      saved.selected = value.selected;
+      for (const name of Object.keys(defaults)) {
+        const pair = value.colors?.[name];
+        if (Array.isArray(pair) && pair.length === 2 && pair.every(c => typeof c === "string" && /^#[0-9a-f]{6}$/i.test(c))) saved.colors[name] = pair;
+      }
+    }
+  } catch (_) {}
+  let draft = null;
+  const rgb = hex => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
+  const luminance = color => color.map(c => { c /= 255; return c <= .04045 ? c / 12.92 : ((c + .055) / 1.055) ** 2.4; }).reduce((sum, c, i) => sum + c * [.2126, .7152, .0722][i], 0);
+  const css = c => `rgb(${c.map(Math.round).join(",")})`;
+  function apply() {
+    const state = draft || saved, pair = state.colors[state.selected] || defaults[state.selected];
+    const dark = document.getElementById("theme-toggle").getAttribute("aria-pressed") === "true";
+    root.dataset.design = state.selected;
+    const base = rgb(pair[0]); let readable = [...base];
+    const background = dark ? [40, 40, 40] : [242, 237, 228];
+    const ratio = c => (Math.max(luminance(c), luminance(background)) + .05) / (Math.min(luminance(c), luminance(background)) + .05);
+    for (let i = 0; i < 30 && ratio(readable) < 4.5; i++) readable = readable.map(c => c + ((dark ? 255 : 0) - c) * .12);
+    root.style.setProperty("--accent", css(readable));
+    root.style.setProperty("--accent-fill", pair[0]);
+    root.style.setProperty("--accent-2", pair[1]);
+    root.style.setProperty("--companion-soft", `rgba(${rgb(pair[1]).join(",")},.12)`);
+    root.style.setProperty("--accent-soft", `rgba(${base.join(",")},.14)`);
+    root.style.setProperty("--accent-glow", `rgba(${base.join(",")},.35)`);
+    root.style.setProperty("--accent-on-fill", luminance(base) > .179 ? "#111111" : "#ffffff");
+    root.style.setProperty("--retro-primary-ink", luminance(base) > .179 ? "#111111" : "#ffffff");
+    root.style.setProperty("--retro-secondary-ink", luminance(rgb(pair[1])) > .179 ? "#111111" : "#ffffff");
+    document.querySelectorAll("[data-design-choice]").forEach(button => button.setAttribute("aria-pressed", String(button.dataset.designChoice === state.selected)));
+    document.getElementById("design-accent").value = pair[0];
+    document.getElementById("design-secondary").value = pair[1];
+  }
+  document.getElementById("design-button").addEventListener("click", () => { draft = JSON.parse(JSON.stringify(saved)); document.getElementById("design-error").textContent = ""; apply(); dialog.showModal(); });
+  document.querySelectorAll("[data-design-choice]").forEach(button => button.addEventListener("click", () => { draft.selected = button.dataset.designChoice; apply(); }));
+  ["design-accent", "design-secondary"].forEach((id, index) => document.getElementById(id).addEventListener("input", e => {
+    const pair = [...(draft.colors[draft.selected] || defaults[draft.selected])]; pair[index] = e.target.value;
+    draft.colors[draft.selected] = pair; apply();
+  }));
+  document.getElementById("design-reset").addEventListener("click", () => { delete draft.colors[draft.selected]; apply(); });
+  document.getElementById("design-close").addEventListener("click", () => dialog.close());
+  dialog.addEventListener("close", () => { draft = null; apply(); });
+  document.getElementById("design-save").addEventListener("click", () => {
+    try { localStorage.setItem(key, JSON.stringify(draft)); saved = JSON.parse(JSON.stringify(draft)); dialog.close(); }
+    catch (_) { document.getElementById("design-error").textContent = "Your design couldn’t be saved. Please try again."; }
+  });
+  window.addEventListener("today:appearance", apply);
+  apply();
+}
+
 function initThemeToggle() {
   const root = document.documentElement;
   const btn = document.getElementById("theme-toggle");
@@ -1184,6 +1241,7 @@ function initThemeToggle() {
       : window.matchMedia("(prefers-color-scheme: dark)").matches;
     btn.setAttribute("aria-pressed", String(isDark));
     label.textContent = isDark ? "Dark" : "Light";
+    window.dispatchEvent(new Event("today:appearance"));
     window.webkit?.messageHandlers?.dashboardControl?.postMessage(isDark ? "dark" : "light");
   }
 
@@ -1455,6 +1513,7 @@ window.refreshLocalDashboard = function () {
 initQuickLinks();
 initNativeControls();
 initThemeToggle();
+initDesignThemes();
 initRhythmWeekDialog();
 initDashboardSections();
 initFocusTimer();

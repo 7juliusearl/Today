@@ -2,6 +2,7 @@ import AppKit
 import SwiftUI
 
 struct IntroView: View {
+    @Environment(\.colorScheme) private var colorScheme
     @ObservedObject var model: CalendarModel
     @ObservedObject var mail: MailModel
     @AppStorage("introWeatherSkipped") private var weatherSkipped = false
@@ -11,7 +12,13 @@ struct IntroView: View {
     @State private var locationPending = false
     @State private var invitationPending = false
     @State private var invitationError = ""
-    private let accent = Color(red: 1, green: 0.40, blue: 0.19)
+    private var isDark: Bool { colorScheme == .dark }
+    private var accent: Color {
+        isDark ? Color(red: 1, green: 0.40, blue: 0.19) : Color(red: 0.72, green: 0.23, blue: 0.07)
+    }
+    private var canvas: Color {
+        isDark ? Color(red: 0.065, green: 0.06, blue: 0.06) : Color(red: 0.97, green: 0.95, blue: 0.91)
+    }
     private var appIcon: NSImage {
         if let url = Bundle.main.url(forResource: "Today", withExtension: "icns"), let image = NSImage(contentsOf: url) { return image }
         return NSApplication.shared.applicationIconImage
@@ -25,8 +32,8 @@ struct IntroView: View {
 
     var body: some View {
         ZStack {
-            Color(red: 0.065, green: 0.06, blue: 0.06)
-            RadialGradient(colors: [accent.opacity(0.23), .clear], center: .topLeading, startRadius: 0, endRadius: 850)
+            canvas
+            RadialGradient(colors: [accent.opacity(isDark ? 0.23 : 0.10), .clear], center: .topLeading, startRadius: 0, endRadius: 850)
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     HStack(spacing: 18) {
@@ -103,11 +110,11 @@ struct IntroView: View {
                             .disabled(completed != 4 || mail.busy || invitationPending || model.requesting)
                     }
                 }.padding(32).frame(maxWidth: 760)
-                    .background(.white.opacity(0.035), in: RoundedRectangle(cornerRadius: 28))
-                    .overlay(RoundedRectangle(cornerRadius: 28).stroke(.white.opacity(0.1)))
+                    .background(Color.white.opacity(isDark ? 0.035 : 0.65), in: RoundedRectangle(cornerRadius: 28))
+                    .overlay(RoundedRectangle(cornerRadius: 28).stroke(isDark ? Color.white.opacity(0.1) : Color.black.opacity(0.1)))
                     .padding(32).frame(maxWidth: .infinity)
             }
-        }.preferredColorScheme(.dark)
+        }.foregroundStyle(.primary)
         .onChange(of: model.primary) { _, value in
             guard !value.isEmpty else { return }
             model.selected.insert(value)
@@ -135,8 +142,8 @@ struct IntroView: View {
                     }.font(.caption)
                 }
             }
-        }.padding(16).background(.white.opacity(enabled ? 0.055 : 0.02), in: RoundedRectangle(cornerRadius: 14))
-            .opacity(enabled ? 1 : 0.5)
+        }.padding(16).background(isDark ? Color.white.opacity(enabled ? 0.055 : 0.02) : Color.black.opacity(enabled ? 0.035 : 0.015), in: RoundedRectangle(cornerRadius: 14))
+            .opacity(enabled ? 1 : 0.75)
     }
 
     private func openPrivacy(_ pane: String) {
