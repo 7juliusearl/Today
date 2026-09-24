@@ -1204,11 +1204,13 @@ function initNativeControls() {
 
 function initDesignThemes() {
   const root = document.documentElement, dialog = document.getElementById("design-dialog");
-  const defaults = {glass: ["#ff7a45", "#ffb37a"], studio: ["#658bff", "#8fd8d0"], editorial: ["#ac7955", "#d8be95"], retro: ["#a64de4", "#ef98cc"]};
+  const defaults = {glass: ["#ff7a45", "#ffb37a"], terminal: ["#48f08b", "#67dacc"], editorial: ["#ac7955", "#d8be95"], retro: ["#a64de4", "#ef98cc"]};
   const key = "today-design-themes";
   let saved = {selected: "glass", colors: {}};
   try {
     const value = JSON.parse(localStorage.getItem(key));
+    if (value?.selected === 'studio') value.selected = 'terminal';
+    if (value?.colors?.studio && !value.colors.terminal) value.colors.terminal = value.colors.studio;
     if (value && Object.hasOwn(defaults, value.selected)) {
       saved.selected = value.selected;
       for (const name of Object.keys(defaults)) {
