@@ -768,6 +768,8 @@ function initFocusTimer() {
     const saved = JSON.parse(localStorage.getItem("today-focus-timer"));
     if (saved && ["running", "paused", "done"].includes(saved.mode) && Number.isFinite(saved.total) && saved.total > 0 && saved.total <= 86400000 && Number.isFinite(saved.remaining) && saved.remaining >= 0 && saved.remaining <= saved.total && Number.isFinite(saved.deadline)) state = saved;
   } catch {}
+  const task = document.getElementById("focus-task");
+  task.value = typeof state.task === "string" ? state.task.slice(0, 100) : "";
   function save() { try { localStorage.setItem("today-focus-timer", JSON.stringify(state)); } catch {} }
   function paint() {
     let remaining = focusRemaining(state);
@@ -778,6 +780,10 @@ function initFocusTimer() {
     const active = state.mode === "running" || state.mode === "paused";
     document.body.classList.toggle("focus-mode", active);
     applySections();
+    document.getElementById("focus-title").textContent = state.mode === "running" ? "Locked in" : state.mode === "paused" ? "Focus paused" : state.mode === "done" ? "Focus complete" : "Focus timer";
+    const working = document.getElementById("focus-working-on");
+    working.hidden = !state.task;
+    working.textContent = state.task ? `Working on: ${state.task}` : "";
     card.classList.toggle("focus-complete", state.mode === "done");
     form.hidden = state.mode !== "idle";
     session.hidden = state.mode === "idle";
@@ -789,7 +795,7 @@ function initFocusTimer() {
     const progress = state.total ? Math.min(100, Math.max(0, (1 - remaining / state.total) * 100)) : 0;
     document.getElementById("focus-progress-fill").style.width = `${progress}%`;
     document.getElementById("focus-progress").setAttribute("aria-valuenow", String(Math.round(progress)));
-    const message = state.mode === "done" ? "Time’s up. Take a breath—you’re done." : state.mode === "paused" ? "Paused. Resume when you’re ready." : state.mode === "running" ? "One thing at a time. You’ve got this." : validationMessage || "Choose a duration in hours and minutes.";
+    const message = state.mode === "done" ? "Time’s up. Take a breath—you’re done." : state.mode === "paused" ? "Paused. Resume when you’re ready." : state.mode === "running" ? "In my focus era. Please save non-urgent chats for after the timer—thank you!" : validationMessage || "Choose a duration in hours and minutes.";
     if (status.textContent !== message) status.textContent = message;
   }
   form.addEventListener("submit", event => {
@@ -803,7 +809,7 @@ function initFocusTimer() {
     }
     validationMessage = "";
     const total = (hours * 60 + minutes) * 60000;
-    state = { mode: "running", total, remaining: total, deadline: Date.now() + total };
+    state = { mode: "running", total, remaining: total, deadline: Date.now() + total, task: task.value.trim().slice(0, 100) };
     save(); paint();
     pause.focus({ preventScroll: true });
     card.scrollIntoView({ block: "nearest", behavior: "smooth" });

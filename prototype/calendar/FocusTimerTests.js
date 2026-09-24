@@ -23,7 +23,11 @@
     }
     assert(!document.querySelector('.hero').classList.contains('focus-section-hidden'), 'Idle ignores filters');
     byId('focus-settings-done').click();
+    byId("focus-task").value = "Finish <video> & review";
     start(1, 10);
+    assert(byId("focus-title").textContent === "Locked in", "Running status visible");
+    assert(byId("focus-working-on").textContent === "Working on: Finish <video> & review", "Task rendered as text");
+    assert(saved().task === "Finish <video> & review", "Task saved with session");
     assert(document.querySelector('.hero').classList.contains('focus-section-hidden'), 'Welcome hidden during focus');
     assert(!document.querySelector('.bento-mail').classList.contains('focus-section-hidden'), 'Selected mail visible');
     assert(JSON.parse(localStorage.getItem('today-focus-sections')).length === 2, 'Selection saved');
@@ -33,6 +37,7 @@
     assert(byId('focus-digits').textContent === '1:00:00', 'Elapsed wall time');
     byId('focus-pause').click();
     assert(saved().remaining === 3600000, 'Paused remaining');
+    assert(byId('focus-title').textContent === 'Focus paused', 'Paused sign accurate');
     assert(document.body.classList.contains('focus-filtered'), 'Pause retains selected layout');
     now += 900000; tick();
     assert(byId('focus-digits').textContent === '1:00:00', 'Pause freezes timer');
@@ -72,7 +77,7 @@
     byId('focus-tall-mail').dispatchEvent(new Event('change'));
     const mail = document.querySelector('.bento-mail').getBoundingClientRect();
     const card = byId('focus-timer').getBoundingClientRect();
-    if (innerWidth >= 1000 && innerHeight >= 650) assert(mail.height > card.height && mail.left >= card.right, 'Mail spans full height on right');
+    if (innerWidth >= 1000 && innerHeight >= 650) assert(mail.top >= card.bottom && card.height >= innerHeight * .5, 'Large focus sign above mail');
     return JSON.stringify({pass:true, timerWidth:card.width,timerHeight:card.height,overflow:document.documentElement.scrollWidth>innerWidth});
   } finally { Date.now = realNow; localStorage.removeItem('today-focus-timer'); localStorage.removeItem('today-focus-sections'); localStorage.removeItem('today-focus-tall-mail'); }
 })();

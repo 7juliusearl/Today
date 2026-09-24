@@ -130,12 +130,14 @@
     <section class="glass-card bento-workschedule bento-focus" id="focus-timer" aria-labelledby="focus-title">
       <div class="panel-head focus-header"><div><p class="eyebrow">Make time for what matters</p><h2 class="panel-title" id="focus-title">Focus timer</h2></div><button id="focus-settings" type="button" aria-label="Timer settings" title="Timer settings" aria-haspopup="dialog" aria-controls="focus-settings-dialog">⚙</button></div>
       <form id="focus-form" class="focus-form">
+        <label class="focus-task-field">Working on <span>(optional)</span><input id="focus-task" type="text" maxlength="100" placeholder="e.g. Finishing the video edit" autocomplete="off"></label>
         <label>Hours<input id="focus-hours" type="number" min="0" max="23" step="1" value="0" required></label>
         <span aria-hidden="true">:</span>
         <label>Minutes<input id="focus-minutes" type="number" min="0" max="59" step="1" value="25" required></label>
         <button type="submit" class="focus-primary">Start focus</button>
       </form>
       <div id="focus-session" hidden>
+        <p id="focus-working-on" class="focus-working-on" hidden></p>
         <div class="focus-digits" id="focus-digits" role="timer" aria-label="Time remaining">0:25<span class="focus-seconds">:00</span></div>
         <div class="focus-progress" id="focus-progress" role="progressbar" aria-label="Focus session elapsed" aria-valuemin="0" aria-valuemax="100"><span id="focus-progress-fill"></span></div>
         <div class="focus-actions"><button type="button" id="focus-pause">Pause</button><button type="button" id="focus-reset">Reset</button></div>

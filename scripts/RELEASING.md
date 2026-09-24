@@ -1,6 +1,6 @@
 # Publish a Today update
 
-The release host is a view-only Dropbox shared **file** link to latest.json. No Dropbox tokens or Apple Developer account are used. Only clean portable releases go in the shared folder.
+The release host is a view-only Dropbox shared **file** link to latest.json. Coworkers need no Dropbox login or Apple Developer account. The local publisher uses a renewable Dropbox authorization stored in macOS Keychain. Only clean portable releases go in the shared folder.
 
 ## One-time publishing setup
 
@@ -16,19 +16,50 @@ xcrun swiftc -parse-as-library -module-cache-path build/swift-module-cache proto
 
 Create `latest.json` in your release folder, obtain its view-only shared file link, and put that URL in `release.json` as `feedURL`. Preserve this file and its sharing link across releases. The updater automatically converts Dropbox preview links to downloads. The link must be downloadable without a Dropbox sign-in or password. A shared folder URL is only for humans browsing releases.
 
-## Each release
+## Automated shipping (recommended)
 
-1. Update `release.json` with a new display version and a strictly higher numeric build. Never reuse a build for a different archive.
-2. Quit Today and run `./scripts/package-today.sh`. Use the printed clean Today.zip, never a user's customized folder.
-3. Upload that ZIP with a versioned name (for example Today-0.2.0.zip) and obtain its view-only shared link.
-4. Write the user-facing changes to a release-notes text file. Generate the signed manifest:
+One-time Dropbox authorization:
+
+```sh
+python3 scripts/dropbox-publisher.py connect --app-key YOUR_APP_KEY
+python3 scripts/dropbox-publisher.py status
+```
+
+Use a scoped Full Dropbox app with `account_info.read`, `files.metadata.read`, `files.content.read`, `files.content.write`, `sharing.read`, and `sharing.write`. Full Dropbox is needed to keep using the existing shared release folder and permanent feed. Authorize in your browser and enter the one-time code in the local terminal. Do not paste codes or tokens into chat. The refresh token is stored in macOS Keychain, never in Git or a coworker package. `disconnect` removes the local credential; revoke the app in Dropbox Connected apps to revoke server-side access too.
+
+For each new shipment:
+
+1. Finish checks, commit and push the intended app changes, and set a strictly higher build in `release.json` before committing. Never reuse a build number for different contents.
+2. Write release notes to a text file and quit Today.
+3. From this repository run:
+
+```sh
+python3 scripts/dropbox-publisher.py ship /absolute/path/release-notes.txt
+```
+
+This builds the universal clean coworker package, saves a versioned archive in `build/releases/`, uploads it to `/Julius Espiritu/Today Dashboard`, obtains a public link, downloads and compares the exact bytes anonymously, signs the manifest with the existing release key, and updates the existing feed file in place. It then verifies the permanent public feed. Git commits/pushes are separate from this command.
+
+To resume a shipment or publish a package that was already built and tested:
+
+```sh
+python3 scripts/dropbox-publisher.py publish \
+  build/releases/Today-0.3.0-build11/Today-0.3.0-build11.zip \
+  build/releases/Today-0.3.0-build11/release-notes.txt
+```
+
+Retries reuse matching uploaded archives. A release that is already live is verified without being republished. Different bytes under the same build number, downgrades, private download links, and a feed link that points to the wrong destination are rejected. The feed is updated only after archive verification, using its prior revision so concurrent changes are not overwritten. The previous signed feed is saved beside the local archive. A failed public verification after upload does not automatically roll back: retry the same publish command to inspect/verify the result. Never delete and recreate `latest.json`.
+
+The publisher does not replace app testing. Validate the prepared package with the existing updater/package checks and perform a disposable older-copy update for app/updater changes. No signing-key rotation or manual Dropbox upload is needed during ordinary shipping.
+
+## Manual fallback
+
+Upload the clean ZIP using a unique build-specific filename, then generate the manifest:
 
 ```sh
 build/release-tool manifest '/absolute/path/Today.zip' 'https://www.dropbox.com/…' '/absolute/path/release-notes.txt'
 ```
 
-5. The tool writes latest.json beside the ZIP. Update the contents of the **existing** latest.json in Dropbox after the ZIP is fully uploaded; don't delete/recreate the shared file. Do not edit the generated manifest: its exact payload is signed.
-6. In an older disposable portable copy, Check for updates, review notes, then install and verify. Confirm the file links work without being signed into Dropbox. If Dropbox changes or revokes the feed link, distribute the replacement through Settings or a manual release.
+Replace the contents of the existing Dropbox `latest.json` with the generated file. Never delete/recreate it, and verify both public links without signing in.
 
 For the first release, obtain the feed link using a placeholder latest.json, embed it, build once, upload the ZIP, then replace the placeholder contents with the signed manifest. v1 users run Update Existing Today.command once. Thereafter the built-in updater handles releases.
 

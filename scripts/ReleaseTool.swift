@@ -8,6 +8,13 @@ import CryptoKit
         let privateDir = root.appendingPathComponent(".today-release-signing")
         let privateURL = privateDir.appendingPathComponent("private-key")
         let publicURL = root.appendingPathComponent("update-public-key.txt")
+        if args.count == 2, args[0] == "verify" {
+            let keyText = try String(contentsOf: publicURL, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let key = Data(base64Encoded: keyText) else { throw TodayUpdateError("Invalid public key.") }
+            let release = try TodayUpdateFiles.verifiedRelease(Data(contentsOf: URL(fileURLWithPath: args[1])), publicKey: key)
+            print(String(data: try JSONEncoder().encode(release), encoding: .utf8)!)
+            return
+        }
         if args == ["init"] {
             guard !FileManager.default.fileExists(atPath: privateURL.path), !FileManager.default.fileExists(atPath: publicURL.path) else { throw TodayUpdateError("A release key already exists. Never replace it for existing installations.") }
             try FileManager.default.createDirectory(at: privateDir, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
