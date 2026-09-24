@@ -1633,7 +1633,7 @@ a.asana-task:hover { color: var(--accent); }
   :root[data-design="retro"] body:not(.focus-mode) .bento-focus .panel-head { margin-bottom: 8px; }
 }
 
-/* Saturated Retro panels stay colorful in both appearances. */
+/* Saturated Retro panels for the light appearance. */
 :root[data-design="retro"] .page .glass-card {
   --retro-panel: var(--accent-2);
   --ink: var(--retro-secondary-ink); --ink-soft: var(--ink); --ink-faint: color-mix(in srgb, var(--ink) 65%, var(--retro-panel));
@@ -1700,3 +1700,52 @@ a.asana-task:hover { color: var(--accent); }
 .sticky-note-from { cursor: grab; touch-action: none; }
 :root[data-design="retro"] .sticky-note { border: 2px solid #211c2b; box-shadow: 5px 5px 0 #211c2b; background: #fff3a8; }
 :root:is([data-design="studio"], [data-design="editorial"]) .sticky-note { background: #fff3bb; }
+
+/* Dark Retro keeps the color in title bars and uses solid, tinted dark paper. */
+:root[data-design="retro"][data-theme="dark"] .page .glass-card {
+  --retro-panel: color-mix(in srgb, var(--accent-2) 14%, #211d2c);
+  --ink: #fff4e2; --ink-soft: #d8cddd; --ink-faint: #b4a4bd;
+  --accent: #fff4e2; --accent-soft: #ffffff18;
+  --glass-bg: var(--retro-panel); --glass-bg-strong: color-mix(in srgb, var(--retro-panel) 85%, #fff4e2);
+  --line: #d6bce738; --retro-outline: #a18eaf; --retro-shadow: #100d17;
+}
+:root[data-design="retro"][data-theme="dark"] .page :is(.hero, .bento-comingup, .bento-plan) { --retro-panel: color-mix(in srgb, var(--accent-fill) 20%, #211d2c); }
+:root[data-design="retro"][data-theme="dark"] .page :is(.happening-now, .bento-focus) { --retro-panel: #393124; }
+:root[data-design="retro"][data-theme="dark"] .page .quicklinks { --retro-panel: #292532; }
+:root[data-design="retro"][data-theme="dark"] .page .glass-card::before { background: var(--accent-2); }
+:root[data-design="retro"][data-theme="dark"] .page :is(.hero, .bento-comingup, .bento-plan)::before { background: var(--accent-fill); }
+:root[data-design="retro"][data-theme="dark"] .page :is(.happening-now, .bento-focus)::before { background: #e7af30; }
+:root[data-design="retro"][data-theme="dark"] .page :is(.schedule-asana, .mail-item-unread, .upcoming-day-group) {
+  --ink: #fff4e2; --ink-soft: #d8cddd; --ink-faint: #b4a4bd;
+  --accent: #dec5ff; --accent-soft: #65497e; --line: #d6bce738;
+  --glass-bg: #24202d; --glass-bg-strong: #393043;
+  background: #24202d; border-color: #a18eaf; box-shadow: 4px 4px 0 #100d17;
+}
+:root[data-design="retro"][data-theme="dark"] .page :is(.schedule-asana, .upcoming-day-group) > .upcoming-day-date { border-bottom-color: #a18eaf; }
+:root[data-design="retro"][data-theme="dark"] .page .mail-item-unread::before { border-bottom-color: #a18eaf; }
+:root[data-design="retro"][data-theme="dark"] .page :is(.schedule-asana, .mail-item-unread, .upcoming-day-group) :focus-visible { outline-color: #dec5ff; }
+
+@media (prefers-color-scheme: dark) {
+:root[data-design="retro"]:not([data-theme]) .page .glass-card {
+  --retro-panel: color-mix(in srgb, var(--accent-2) 14%, #211d2c);
+  --ink: #fff4e2; --ink-soft: #d8cddd; --ink-faint: #b4a4bd;
+  --accent: #fff4e2; --accent-soft: #ffffff18;
+  --glass-bg: var(--retro-panel); --glass-bg-strong: color-mix(in srgb, var(--retro-panel) 85%, #fff4e2);
+  --line: #d6bce738; --retro-outline: #a18eaf; --retro-shadow: #100d17;
+}
+:root[data-design="retro"]:not([data-theme]) .page :is(.hero, .bento-comingup, .bento-plan) { --retro-panel: color-mix(in srgb, var(--accent-fill) 20%, #211d2c); }
+:root[data-design="retro"]:not([data-theme]) .page :is(.happening-now, .bento-focus) { --retro-panel: #393124; }
+:root[data-design="retro"]:not([data-theme]) .page .quicklinks { --retro-panel: #292532; }
+:root[data-design="retro"]:not([data-theme]) .page .glass-card::before { background: var(--accent-2); }
+:root[data-design="retro"]:not([data-theme]) .page :is(.hero, .bento-comingup, .bento-plan)::before { background: var(--accent-fill); }
+:root[data-design="retro"]:not([data-theme]) .page :is(.happening-now, .bento-focus)::before { background: #e7af30; }
+:root[data-design="retro"]:not([data-theme]) .page :is(.schedule-asana, .mail-item-unread, .upcoming-day-group) {
+  --ink: #fff4e2; --ink-soft: #d8cddd; --ink-faint: #b4a4bd;
+  --accent: #dec5ff; --accent-soft: #65497e; --line: #d6bce738;
+  --glass-bg: #24202d; --glass-bg-strong: #393043;
+  background: #24202d; border-color: #a18eaf; box-shadow: 4px 4px 0 #100d17;
+}
+:root[data-design="retro"]:not([data-theme]) .page :is(.schedule-asana, .upcoming-day-group) > .upcoming-day-date { border-bottom-color: #a18eaf; }
+:root[data-design="retro"]:not([data-theme]) .page .mail-item-unread::before { border-bottom-color: #a18eaf; }
+:root[data-design="retro"]:not([data-theme]) .page :is(.schedule-asana, .mail-item-unread, .upcoming-day-group) :focus-visible { outline-color: #dec5ff; }
+}
