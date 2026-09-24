@@ -10,6 +10,7 @@ import ServiceManagement
     let extras = DashboardExtras()
     let login = LoginSettings()
     let mail = MailModel()
+    let asanaBriefs = AsanaBriefs()
     let companion = CompanionServer()
     private var pendingInvitations: [String: EKEvent] = [:]
     private var calendarActions: [String: String] = [:]
@@ -20,10 +21,12 @@ import ServiceManagement
     @Published var primary: String = UserDefaults.standard.string(forKey: "primaryCalendar") ?? ""
     @Published var asanaCalendar = UserDefaults.standard.string(forKey: "asanaCalendar") ?? ""
     @Published var message = "Connect to the calendars already synced with Apple Calendar."
-    @Published var script = "" { didSet { companion.snapshot = script } }
+    @Published var script = "" { didSet { if script.isEmpty { companion.snapshot = "" } } }
     @Published var revision = 0
     @Published var connected = false
     @Published var requesting = false
+    @Published var calendarAuthorization = EKEventStore.authorizationStatus(for: .event)
+    @Published var calendarMessage = ""
     @Published var setupCompleted = UserDefaults.standard.bool(forKey: "introCompleted")
     func finishSetup() {
         setupCompleted = true
@@ -34,16 +37,18 @@ import ServiceManagement
     init() {
         if companion.resumeOnLaunch { companion.start() }
         automaticRefresh = AutoRefreshController { [weak self] in
-            guard let self, self.connected else { return }
+            guard let self, (self.connected || self.asanaBriefs.auth.connected) else { return }
             self.refresh()
         }
+        asanaBriefs.onChange = { [weak self] in self?.objectWillChange.send(); self?.refresh() }
+        if asanaBriefs.auth.connected { asanaBriefs.auth.reloadWorkspaces() }
         mail.onChange = { [weak self] in
-            guard let self, self.connected else { return }
+            guard let self, (self.connected || self.asanaBriefs.auth.connected) else { return }
             self.refresh()
         }
         extras.onChange = { [weak self] in
             self?.objectWillChange.send()
-            guard let self, self.connected else { return }
+            guard let self, (self.connected || self.asanaBriefs.auth.connected) else { return }
             self.refresh()
         }
     }
@@ -78,29 +83,36 @@ import ServiceManagement
         store.requestFullAccessToEvents { granted, error in
             Task { @MainActor in
                 self.requesting = false
-                if granted { self.loadCalendars(); self.refresh() }
-                else { self.message = error?.localizedDescription ?? "Calendar access was not granted. Enable Today in System Settings → Privacy & Security → Calendars, then connect again." }
+                self.calendarAuthorization = EKEventStore.authorizationStatus(for: .event)
+                if granted { self.store.reset(); self.loadCalendars(); self.refresh() }
+                else {
+                    self.loadCalendars()
+                    self.message = self.calendarMessage
+                }
             }
         }
     }
     func loadCalendars() {
+        calendarAuthorization = EKEventStore.authorizationStatus(for: .event)
+        guard calendarAuthorization == .fullAccess else {
+            connected = false; calendars = []
+            calendarMessage = calendarAuthorization == .denied || calendarAuthorization == .restricted
+                ? "Calendar access is off. Enable Today in System Settings → Privacy & Security → Calendars. Asana connects separately."
+                : "Allow Today to read Apple Calendar so your meetings and calendar choices can appear. Asana connects separately."
+            return
+        }
         calendars = store.calendars(for: .event).sorted { ($0.source.title, $0.title) < ($1.source.title, $1.title) }
         connected = true
-        if calendars.isEmpty { message = "No calendars found. Check that your Google account is enabled in Apple Calendar." }
+        calendarMessage = calendars.isEmpty ? "No calendars found in Apple Calendar. Check that your Google account’s Calendars option is enabled on this Mac, then reload." : ""
+    }
+    func reloadCalendars() {
+        if EKEventStore.authorizationStatus(for: .event) == .fullAccess { store.reset() }
+        loadCalendars()
+        refresh()
     }
     func refresh() {
-        guard EKEventStore.authorizationStatus(for: .event) == .fullAccess else {
-            connected = false; script = ""; revision += 1
-            message = "Calendar access is needed. Click Connect calendars."
-            return
-        }
         loadCalendars()
         let chosen = calendars.filter { selected.contains($0.calendarIdentifier) }
-        guard !chosen.isEmpty else {
-            script = ""; revision += 1
-            message = "Choose at least one calendar in Settings."
-            return
-        }
         UserDefaults.standard.set(Array(selected), forKey: "selectedCalendars")
         UserDefaults.standard.set(name, forKey: "firstName")
         UserDefaults.standard.set(primary, forKey: "primaryCalendar")
@@ -110,14 +122,20 @@ import ServiceManagement
         let now = Date()
         let start = Calendar.current.startOfDay(for: now)
         let end = Calendar.current.date(byAdding: .day, value: 91, to: start)!
-        let events = store.events(matching: store.predicateForEvents(withStart: start, end: end, calendars: chosen))
+        let events = chosen.isEmpty ? [] : store.events(matching: store.predicateForEvents(withStart: start, end: end, calendars: chosen))
         let calendar = calendarPayload(events.filter { $0.calendar.calendarIdentifier != asanaCalendar }, now: now, primary: primary)
         let asanaSource = calendars.first { $0.calendarIdentifier == asanaCalendar }
         let asanaEvents = asanaSource.map { source in
             store.events(matching: store.predicateForEvents(withStart: start,
                 end: Calendar.current.date(byAdding: .day, value: 15, to: start)!, calendars: [source]))
         } ?? []
-        let asana = asanaPayload(asanaEvents, now: now, calendarName: asanaSource?.title)
+        let calendarAsana = asanaPayload(asanaEvents, now: now, calendarName: asanaSource?.title)
+        asanaBriefs.refresh(calendarAsana.tasks, source: asanaCalendar)
+        let directTasks = asanaBriefs.directTasks
+        let asana = AsanaPayload(connected: directTasks != nil || calendarAsana.connected, calendarName: directTasks != nil ? "Asana · My tasks" : calendarAsana.calendarName,
+            tasks: (directTasks ?? calendarAsana.tasks).map { task in
+                var task = task; task.brief = asanaBriefs.brief(for: task.url); return task
+            })
         pendingInvitations = [:]
         let pendingIDs = Set(calendar.pendingInvites.map(\.id))
         for event in events {
@@ -137,6 +155,9 @@ import ServiceManagement
         do {
             let data = try JSONEncoder().encode(Dashboard(generatedAt: ISO8601DateFormatter().string(from: now),
                 userFirstName: name.isEmpty ? "there" : name, calendar: calendar, asana: asana, verse: extras.verse, weather: extras.weather, mail: mail.snapshot, calendarActions: calendarActions))
+            let sharedData = try JSONEncoder().encode(Dashboard(generatedAt: ISO8601DateFormatter().string(from: now),
+                userFirstName: name.isEmpty ? "there" : name, calendar: calendar, asana: calendarAsana, verse: extras.verse, weather: extras.weather, mail: mail.snapshot, calendarActions: calendarActions))
+            companion.snapshot = "window.LOCAL_CALENDAR_PROTOTYPE = true; window.DASHBOARD_DATA = " + String(decoding: sharedData, as: UTF8.self) + ";"
             script = "window.LOCAL_CALENDAR_PROTOTYPE = true; window.DASHBOARD_DATA = " + String(decoding: data, as: UTF8.self) + ";"
             // Load only the two explicitly supported personal files, without bundling them.
             if let directory = TodayPaths.personalData {
@@ -144,6 +165,7 @@ import ServiceManagement
                     let url = directory.appendingPathComponent(filename)
                     if let source = try? String(contentsOf: url, encoding: .utf8) {
                         script += "\n;try {\n" + source + "\n} catch (_) {}\n"
+                        companion.snapshot += "\n;try {\n" + source + "\n} catch (_) {}\n"
                     }
                 }
             }
@@ -319,6 +341,22 @@ struct CalendarSettingsView: View {
                         settingsCard {
                             Text("Your calendars").font(.headline)
                             Text("Choose which calendars appear on your dashboard.").foregroundStyle(.secondary)
+                            if !model.calendarMessage.isEmpty {
+                                Text(model.calendarMessage).font(.callout).foregroundStyle(.secondary)
+                            }
+                            HStack {
+                                if model.calendarAuthorization != .fullAccess {
+                                    Button(model.requesting ? "Connecting…" : "Connect calendars") { model.connect() }.disabled(model.requesting)
+                                    Button("Calendar privacy settings") {
+                                        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars")!)
+                                    }
+                                }
+                                Button("Reload calendars") { model.reloadCalendars() }
+                                if model.calendars.isEmpty {
+                                    Button("Open Apple Calendar") { NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/Calendar.app")) }
+                                }
+                            }
+                            if !model.calendars.isEmpty {
             Picker("Primary calendar", selection: $primary) {
                 Text("Choose…").tag("")
                 ForEach(model.calendars, id: \.calendarIdentifier) { calendar in
@@ -340,11 +378,32 @@ struct CalendarSettingsView: View {
                     }
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(12)
             .background(.quaternary.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
+                            }
             Text("Google syncing is handled by Apple Calendar. Today only reads events. Optional device sharing is controlled separately.")
                 .font(.callout).foregroundStyle(.secondary)
                         }
                         settingsCard {
-                            DisclosureGroup("Asana calendar subscription") {
+                            Text("Asana").font(.headline)
+                            Text("Connect to see your assigned tasks, due dates, and parent briefs. No Asana calendar subscription is needed. Meetings still come from Apple Calendar.").font(.caption).foregroundStyle(.secondary)
+                            HStack {
+                                Button(model.asanaBriefs.auth.connected ? "Reconnect Asana" : "Connect Asana") { model.asanaBriefs.auth.connect() }
+                                    .disabled(model.asanaBriefs.auth.busy)
+                                if model.asanaBriefs.auth.connected {
+                                    Button("Disconnect") { model.asanaBriefs.auth.disconnect() }.disabled(model.asanaBriefs.auth.busy)
+                                    Button("Reload workspaces") { model.asanaBriefs.auth.reloadWorkspaces() }.disabled(model.asanaBriefs.auth.busy)
+                                }
+                            }
+                            Text(model.asanaBriefs.auth.message).font(.caption).foregroundStyle(.secondary)
+                            if model.asanaBriefs.auth.connected {
+                                Picker("Workspace", selection: Binding(get: { model.asanaBriefs.workspace }, set: { model.asanaBriefs.setWorkspace($0) })) {
+                                    Text("Choose a workspace").tag("")
+                                    ForEach(model.asanaBriefs.auth.workspaces, id: \.gid) { Text($0.name).tag($0.gid) }
+                                }
+                                Toggle("Show Asana tasks and parent briefs", isOn: Binding(get: { model.asanaBriefs.enabled }, set: { model.asanaBriefs.setEnabled($0) }))
+                                Text(model.asanaBriefs.status).font(.caption).foregroundStyle(.secondary)
+                            }
+                            Text("Direct Asana tasks and briefs stay on this Mac and are excluded from device sharing.").font(.caption).foregroundStyle(.secondary)
+                            DisclosureGroup("Optional calendar subscription fallback") {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Asana tasks").font(.headline)
                 Text("In Asana, click the small down arrow beside My tasks → Sync/Export → Google Calendar (recommended). Follow the steps to add it to your work Google Calendar. Make sure that task calendar also appears in Apple Calendar on this Mac, then reload and choose it below.")
@@ -425,7 +484,7 @@ struct CalendarSettingsView: View {
                     model.refresh()
                     if !model.script.isEmpty { dismiss() }
                 }.keyboardShortcut(.defaultAction)
-                    .disabled(!model.calendars.contains { selected.contains($0.calendarIdentifier) })
+                    .disabled(model.requesting)
             }
             }.padding(.horizontal, 22).padding(.vertical, 16)
         }
@@ -434,6 +493,7 @@ struct CalendarSettingsView: View {
                height: min(700, (NSScreen.main?.visibleFrame.height ?? 900) - 100))
         .onAppear {
             login.reload()
+            model.loadCalendars()
             selected = model.selected
             name = model.name
             primary = model.primary
@@ -441,6 +501,7 @@ struct CalendarSettingsView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             login.reload()
+            model.reloadCalendars()
             model.objectWillChange.send()
         }
         .onChange(of: primary) { _, value in
@@ -574,15 +635,15 @@ struct PrototypeView: View {
         .onAppear {
             updater.checkAutomatically()
             if TodayPaths.portable && TodayPaths.project == nil { TodayPaths.chooseProject() }
-            if EKEventStore.authorizationStatus(for: .event) == .fullAccess { model.refresh() }
+            model.refresh()
         }
         .onReceive(timer) { _ in
             updater.checkAutomatically()
-            if EKEventStore.authorizationStatus(for: .event) == .fullAccess && !settingsPresented { model.refresh() }
+            if !settingsPresented { model.refresh() }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             space.refreshPermission()
-            if EKEventStore.authorizationStatus(for: .event) == .fullAccess && !settingsPresented { model.refresh() }
+            if !settingsPresented { model.refresh() }
         }
     }
 }

@@ -108,12 +108,24 @@ func calendarPayload(_ events: [EKEvent], now: Date, primary: String?) -> Calend
                  upcoming: days, pendingInvites: Array(pending.prefix(30)))
 }
 
+struct AsanaBrief: Codable {
+    let title: String
+    let description: String
+    let url: String?
+    let parentTitle: String?
+    let parentDescription: String?
+    let parentURL: String?
+    let message: String?
+}
+
 struct AsanaPayload: Encodable {
     struct Task: Encodable {
         let id: String
         let title: String
         let dueDate: String
         let url: String?
+        let description: String?
+        var brief: AsanaBrief? = nil
     }
     let connected: Bool
     let calendarName: String?
@@ -136,7 +148,35 @@ func asanaPayload(_ events: [EKEvent], now: Date, calendarName: String?) -> Asan
                 $0.scheme == "https" && ($0.host == "app.asana.com" || $0.host == "asana.com")
             }
             return AsanaPayload.Task(id: event.calendarItemIdentifier + "@" + format.string(from: event.startDate),
-                title: event.title ?? "Untitled task", dueDate: format.string(from: event.startDate), url: url?.absoluteString)
+                title: event.title ?? "Untitled task", dueDate: format.string(from: event.startDate), url: url?.absoluteString,
+                description: event.notes?.trimmingCharacters(in: .whitespacesAndNewlines))
         }
     return .init(connected: calendarName != nil, calendarName: calendarName, tasks: tasks)
+}
+
+struct AsanaAssignedTask: Decodable {
+    let gid: String
+    let name: String
+    let completed: Bool
+    let due_on: String?
+    let due_at: String?
+    let notes: String?
+    let permalink_url: String?
+}
+
+func assignedAsanaTasks(_ records: [AsanaAssignedTask], now: Date, calendar: Calendar = .current) -> [AsanaPayload.Task] {
+    let format = DateFormatter(); format.locale = Locale(identifier: "en_US_POSIX")
+    format.timeZone = calendar.timeZone; format.dateFormat = "yyyy-MM-dd"
+    let start = format.string(from: calendar.startOfDay(for: now))
+    let end = format.string(from: calendar.date(byAdding: .day, value: 15, to: calendar.startOfDay(for: now))!)
+    let iso = ISO8601DateFormatter()
+    let fractional = ISO8601DateFormatter(); fractional.formatOptions.insert(.withFractionalSeconds)
+    var seen = Set<String>()
+    return records.compactMap { task in
+        guard !task.completed, seen.insert(task.gid).inserted else { return nil }
+        let date = task.due_at.flatMap { fractional.date(from: $0) ?? iso.date(from: $0) }.map { format.string(from: $0) } ?? task.due_on
+        guard let date, date >= start, date < end else { return nil }
+        return AsanaPayload.Task(id: "asana:" + task.gid, title: task.name, dueDate: date,
+            url: task.permalink_url ?? "https://app.asana.com/0/0/\(task.gid)", description: task.notes)
+    }.sorted { ($0.dueDate, $0.id) < ($1.dueDate, $1.id) }
 }

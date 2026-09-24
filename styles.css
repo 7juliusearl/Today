@@ -1780,3 +1780,19 @@ body.focus-timer-only .page.page .bento-focus { min-height: 80vh; }
   body.focus-mode .page.page .bento-focus { min-height: 50svh; padding: 22px; }
   body.focus-mode .page.page .focus-digits { font-size: 21cqi; }
 }
+
+.asana-task-title { display: block; color: inherit; font: inherit; text-decoration: none; margin: 0; }
+.asana-task details { margin-top: 8px; }
+.asana-task summary { cursor: pointer; font: inherit; color: var(--ink-soft); }
+.asana-task-description { white-space: pre-wrap; overflow-wrap: anywhere; margin: 10px 0 0; font: inherit; line-height: 1.55; }
+.asana-brief-button { margin-top: 8px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--glass-bg); color: var(--ink); font: inherit; cursor: pointer; }
+.asana-brief-dialog { width: min(760px, calc(100vw - 32px)); max-height: 85vh; padding: 0; border: 1px solid var(--line); border-radius: 18px; background: var(--glass-bg-strong); color: var(--ink); overflow: hidden; }
+.asana-brief-dialog::backdrop { background: rgb(0 0 0 / .6); }
+.asana-brief-dialog header { display: flex; align-items: start; gap: 20px; padding: 22px; border-bottom: 1px solid var(--line); }
+.asana-brief-dialog h2 { font-size: 22px; margin: 0; flex: 1; overflow-wrap: anywhere; }
+.asana-brief-dialog header button { color: inherit; background: transparent; border: 1px solid var(--line); border-radius: 8px; font-size: 26px; cursor: pointer; width: 40px; flex-shrink: 0; }
+.asana-brief-content { max-height: 62vh; overflow-y: auto; padding: 22px; }
+.asana-brief-content h3 { margin: 0 0 14px; font-size: 18px; }
+.asana-brief-text { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; margin: 0 0 24px; }
+.asana-brief-content a { color: var(--ink); text-decoration: underline; overflow-wrap: anywhere; }
+:root[data-design="retro"] .asana-brief-dialog { background: var(--bg); border: 3px solid var(--ink); border-radius: 4px; box-shadow: 7px 7px 0 var(--ink); font-family: var(--mono); }

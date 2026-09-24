@@ -47,12 +47,12 @@ struct IntroView: View {
                     }
                     VStack(alignment: .leading, spacing: 10) {
                         Label("Before you begin", systemImage: "info.circle").font(.headline)
-                        Text("Today uses the accounts and calendars already connected to this Mac. It doesn’t sign in to Google or Asana directly.")
+                        Text("Today reads meetings and email from the Apple apps on this Mac. Connect Asana separately in Settings for assigned tasks and parent briefs.")
                         ViewThatFits(in: .horizontal) {
                             HStack { setupButtons }
                             VStack(alignment: .leading) { setupButtons }
                         }
-                        Text("If you can’t see an event, task calendar, or email in the Apple app, Today can’t show it yet. Asana calendar subscriptions may take time to refresh.")
+                        Text("Meetings must appear in Apple Calendar and email in Apple Mail. A direct Asana connection does not require a task calendar subscription.")
                             .foregroundStyle(.secondary)
                     }
                     .font(.callout)
@@ -200,17 +200,16 @@ private enum ConnectionGuide: String, CaseIterable {
             "Return to Today and choose Allow Calendar. Pick your primary calendar. You can select additional calendars in Today’s Settings → Calendars."
         ]
         case .asana: return [
-            "In Asana, open My tasks. Click the small down arrow beside the My tasks title at the top—not the arrow beside Add task.",
-            "Open Sync/Export, then choose Google Calendar. This is the recommended option for our team, since we use Google for our work calendars.",
-            "Follow Asana’s instructions to add the task calendar to your work Google Calendar. Confirm that it appears there and includes your dated tasks.",
-            "Make sure the same Google account is connected to Apple Calendar on this Mac. If the Asana calendar is missing, open Choose Google calendars to sync below, enable it, save, and refresh Apple Calendar.",
-            "Once the task calendar appears in Apple Calendar, open Today’s Settings → Calendars → Asana calendar subscription. Click Reload calendars, select it, and Save."
-
+            "Open Today’s Settings → Calendars → Asana and click Connect Asana.",
+            "Sign in with your own Asana account and approve read access. If your organization requires approval, request it from your Asana administrator.",
+            "Choose your workspace. Today loads your incomplete assigned tasks with due dates for today and the next two weeks; tasks due today appear in Today’s schedule.",
+            "Click View brief on a task to read its parent’s instructions. Complete and edit tasks in Asana.",
+            "The calendar subscription is an optional fallback. If you already use one, select that calendar in the fallback section so Today keeps it separate from meetings."
         ]
         }
     }
     var note: String {
-        self == .asana ? "Only dated tasks are included. Calendar subscriptions can update slowly; complete and edit tasks in Asana." : "Today reads the Apple apps on this Mac. Signing in happens with Google, not inside Today."
+        self == .asana ? "Direct Asana tasks and briefs stay on this Mac. Meetings and email still use Apple Calendar and Apple Mail." : "Today reads the Apple apps on this Mac. Signing in happens with Google, not inside Today."
     }
     var helpURL: URL {
         URL(string: self == .gmail ? "https://support.apple.com/kb/ht5361" : self == .calendar ? "https://support.google.com/calendar/answer/99358" : "https://help.asana.com/s/article/calendars-and-asana")!
@@ -262,7 +261,7 @@ private struct ConnectionGuideView: View {
                     }
                     Text(guide.note).font(.callout).foregroundStyle(.secondary)
                     Link("Official setup instructions ↗", destination: guide.helpURL)
-                    if guide == .calendar || guide == .asana {
+                    if guide == .calendar {
                         Link("Choose Google calendars to sync ↗", destination: URL(string: "https://www.google.com/calendar/syncselect")!)
                     }
                 }.padding(20)

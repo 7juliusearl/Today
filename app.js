@@ -297,10 +297,30 @@ function renderSchedule() {
     section.append(heading);
     for (const task of tasks) {
       const url = asanaDesktopLink(task.url);
-      const row = document.createElement(url ? "a" : "p");
+      const row = document.createElement("div");
       row.className = "asana-task";
-      row.textContent = task.title + (url ? " ↗" : "");
-      if (url) { row.href = url; row.target = "_blank"; row.rel = "noopener"; }
+      const title = document.createElement(url ? "a" : "p");
+      title.className = "asana-task-title";
+      title.textContent = task.title + (url ? " ↗" : "");
+      if (url) { title.href = url; title.target = "_blank"; title.rel = "noopener"; }
+      row.append(title);
+      if (task.brief) {
+        const button = document.createElement("button");
+        button.type = "button"; button.className = "asana-brief-button";
+        button.textContent = "View brief";
+        button.addEventListener("click", () => showAsanaBrief(task));
+        row.append(button);
+      }
+      if (!task.brief && typeof task.description === "string" && task.description.trim()) {
+        const details = document.createElement("details");
+        const summary = document.createElement("summary");
+        summary.textContent = "Task details";
+        const description = document.createElement("p");
+        description.className = "asana-task-description";
+        description.textContent = task.description.trim();
+        details.append(summary, description);
+        row.append(details);
+      }
       section.append(row);
     }
     list.append(section);
@@ -1584,3 +1604,53 @@ renderMail();
 renderVerse();
 renderStickyNotes();
 initWeather();
+
+function showAsanaBrief(task) {
+  document.getElementById('asana-brief-dialog')?.remove();
+  const dialog = document.createElement('dialog');
+  dialog.id = 'asana-brief-dialog'; dialog.className = 'asana-brief-dialog';
+  dialog.setAttribute('aria-labelledby', 'asana-brief-title');
+  const head = document.createElement('header');
+  const title = document.createElement('h2');
+  title.id = 'asana-brief-title'; title.textContent = task.title;
+  const close = document.createElement('button');
+  close.textContent = '×'; close.setAttribute('aria-label', 'Close task brief');
+  close.addEventListener('click', () => dialog.close());
+  head.append(title, close);
+  const content = document.createElement('div'); content.className = 'asana-brief-content';
+  const brief = task.brief;
+  function addText(value) {
+    const p = document.createElement('p'); p.className = 'asana-brief-text';
+    const text = String(value || '');
+    let end = 0;
+    for (const match of text.matchAll(/https:\/\/[^\s<>"']+/g)) {
+      p.append(document.createTextNode(text.slice(end, match.index)));
+      const a = document.createElement('a'); a.textContent = match[0];
+      a.href = match[0]; a.target = '_blank'; a.rel = 'noopener noreferrer';
+      p.append(a); end = match.index + match[0].length;
+    }
+    p.append(document.createTextNode(text.slice(end))); content.append(p);
+  }
+  function heading(text) { const h = document.createElement('h3'); h.textContent = text; content.append(h); }
+  if (brief.parentTitle) {
+    heading('Parent task · ' + brief.parentTitle);
+    addText(brief.parentDescription || 'No description on the parent task.');
+    if (brief.description) { heading('Your task’s instructions'); addText(brief.description); }
+  } else {
+    heading('Task brief'); addText(brief.description || 'No description on this task.');
+  }
+  if (brief.message) addText(brief.message);
+  const url = asanaDesktopLink(brief.parentURL || brief.url || task.url);
+  if (url) {
+    const a = document.createElement('a'); a.href = url;
+    a.textContent = brief.parentURL ? 'Open parent in Asana ↗' : 'Open task in Asana ↗';
+    a.target = '_blank'; a.rel = 'noopener'; content.append(a);
+  }
+  dialog.append(head, content); document.body.append(dialog);
+  dialog.addEventListener('close', () => dialog.remove());
+  dialog.addEventListener('click', event => {
+    const box = dialog.getBoundingClientRect();
+    if (event.target === dialog && (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom)) dialog.close();
+  });
+  dialog.showModal();
+}
