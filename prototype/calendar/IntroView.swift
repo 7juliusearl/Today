@@ -201,10 +201,10 @@ private enum ConnectionGuide: String, CaseIterable {
         ]
         case .asana: return [
             "Open Today’s Settings → Calendars → Asana and click Connect Asana.",
-            "Sign in with your own Asana account and approve read access. If your organization requires approval, request it from your Asana administrator.",
+            "Sign in with your own Asana account and approve access to tasks, comments, and coworkers. If your organization requires approval, request it from your Asana administrator.",
             "Choose your workspace. Today loads your incomplete assigned tasks with due dates for today and the next two weeks; tasks due today appear in Today’s schedule.",
-            "Click View brief on a task to read its parent’s instructions. Complete and edit tasks in Asana.",
-            "The calendar subscription is an optional fallback. If you already use one, select that calendar in the fallback section so Today keeps it separate from meetings."
+            "Click View brief on a task to read its parent’s instructions, view comments, and post replies. Type @ and select a coworker to tag them. Complete and edit tasks in Asana.",
+            "No Asana calendar subscription is needed. Your meetings still come from the calendars you select in Apple Calendar."
         ]
         }
     }

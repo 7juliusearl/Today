@@ -301,7 +301,6 @@ struct CalendarSettingsView: View {
     @State private var selected: Set<String> = []
     @State private var name = ""
     @State private var primary = ""
-    @State private var asanaCalendar = ""
 
     private enum Page: String, CaseIterable {
         case general = "General", calendars = "Calendars", mail = "Mail", weather = "Weather", ipad = "Devices", updates = "Updates"
@@ -427,25 +426,6 @@ struct CalendarSettingsView: View {
                                 Text(model.asanaBriefs.status).font(.caption).foregroundStyle(.secondary)
                             }
                             Text("Direct Asana tasks and briefs stay on this Mac and are excluded from device sharing.").font(.caption).foregroundStyle(.secondary)
-                            DisclosureGroup("Optional calendar subscription fallback") {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Asana tasks").font(.headline)
-                Text("In Asana, click the small down arrow beside My tasks → Sync/Export → Google Calendar (recommended). Follow the steps to add it to your work Google Calendar. Make sure that task calendar also appears in Apple Calendar on this Mac, then reload and choose it below.")
-                    .font(.caption).foregroundStyle(.secondary)
-                Picker("Asana calendar", selection: $asanaCalendar) {
-                    Text("Not connected").tag("")
-                    ForEach(model.calendars, id: \.calendarIdentifier) { calendar in
-                        Text("\(calendar.title) — \(calendar.source.title)").tag(calendar.calendarIdentifier)
-                    }
-                }
-                HStack {
-                    Button("Reload calendars") { model.loadCalendars() }
-                    Link("Setup guide ↗", destination: URL(string: "https://asana.com/apps/calendar")!)
-                }
-                Text("Tasks due today appear in Today’s calendar. Subscription updates may be delayed. Complete tasks in Asana; tasks without due dates aren’t included.")
-                    .font(.caption).foregroundStyle(.secondary)
-            }
-                            }
                         }
                     case .mail:
                         settingsCard { MailSettingsView(mail: model.mail) }
@@ -503,7 +483,6 @@ struct CalendarSettingsView: View {
                 Button("Save") {
                     model.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
                     model.primary = primary
-                    model.asanaCalendar = asanaCalendar
                     model.selected = selected
                     model.refresh()
                     if !model.script.isEmpty { dismiss() }
@@ -521,7 +500,6 @@ struct CalendarSettingsView: View {
             selected = model.selected
             name = model.name
             primary = model.primary
-            asanaCalendar = model.asanaCalendar
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             login.reload()
