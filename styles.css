@@ -1796,3 +1796,56 @@ body.focus-timer-only .page.page .bento-focus { min-height: 80vh; }
 .asana-brief-text { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; margin: 0 0 24px; }
 .asana-brief-content a { color: var(--ink); text-decoration: underline; overflow-wrap: anywhere; }
 :root[data-design="retro"] .asana-brief-dialog { background: var(--bg); border: 3px solid var(--ink); border-radius: 4px; box-shadow: 7px 7px 0 var(--ink); font-family: var(--mono); }
+
+.asana-comments { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--line); }
+.asana-comments label { display: grid; gap: 8px; margin: 12px 0; font-weight: 600; }
+.asana-comments select, .asana-comments textarea { width: 100%; box-sizing: border-box; font: inherit; color: inherit; background: var(--bg); border: 1px solid currentColor; border-radius: 6px; padding: 10px; }
+.asana-comments textarea { resize: vertical; min-height: 100px; }
+.asana-comments button { font: inherit; color: inherit; background: transparent; border: 1px solid currentColor; border-radius: 6px; padding: 8px 12px; cursor: pointer; }
+.asana-comments button:disabled { opacity: .5; cursor: default; }
+.asana-comment-list article { padding: 14px 0; border-bottom: 1px solid var(--line); }
+.asana-comment-list time { display: block; font-size: .8em; opacity: .7; margin-top: 4px; }
+.asana-comment-list p { white-space: pre-wrap; overflow-wrap: anywhere; }
+.asana-comments form > p { font-size: .85em; opacity: .8; }
+
+/* Keep the task brief compact regardless of the dashboard's display scale. */
+.asana-brief-dialog { font-size: 13px; line-height: 1.5; }
+.asana-brief-dialog header { padding: 16px 20px; gap: 12px; }
+.asana-brief-dialog h2 { font-size: 18px; line-height: 1.35; }
+.asana-brief-content { padding: 18px 20px; max-height: 68vh; }
+.asana-brief-content h3 { font-size: 14px; line-height: 1.4; margin-bottom: 10px; }
+.asana-brief-text { margin-bottom: 18px; line-height: 1.55; }
+.asana-comments { margin-top: 20px; padding-top: 16px; }
+.asana-comments-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.asana-comments-toolbar h3 { margin: 0; }
+.asana-comments label { font-size: 12px; gap: 6px; margin: 12px 0; }
+.asana-comments select, .asana-comments textarea { font-size: 13px; font-weight: 400; padding: 8px 10px; border-color: var(--line); }
+.asana-comments select { min-width: 0; text-overflow: ellipsis; }
+.asana-comments textarea { min-height: 76px; line-height: 1.5; }
+.asana-comments button { font-size: 12px; padding: 6px 10px; border-color: var(--line); }
+.asana-comments [role="status"] { margin: 10px 0; font-size: 12px; color: var(--ink-soft); }
+.asana-comment-list article { padding: 12px 0; }
+.asana-comment-list p { margin: 6px 0 0; line-height: 1.5; }
+.asana-comments form { margin-top: 16px; padding-top: 2px; }
+.asana-comments form > p { margin: 6px 0 10px; font-size: 11px; }
+
+.asana-comment-author { display: flex; align-items: center; gap: 8px; }
+.asana-avatar { display: inline-flex; position: relative; align-items: center; justify-content: center; flex-shrink: 0; width: 28px; height: 28px; overflow: hidden; border-radius: 50%; background: var(--line); color: var(--ink); font: 600 10px/1 var(--mono); vertical-align: middle; }
+.asana-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.asana-mention { display: inline-flex; align-items: center; gap: 5px; padding: 2px 7px 2px 3px; margin: 0 3px 2px 0; border: 1px solid var(--line); border-radius: 14px; font-size: 12px; vertical-align: middle; }
+.asana-mention .asana-avatar { width: 20px; height: 20px; font-size: 8px; }
+
+.asana-comment-author, .asana-mention { --person-color: var(--person-light); color: var(--person-color); }
+.asana-comment-author .asana-avatar, .asana-mention .asana-avatar { color: inherit; background: color-mix(in srgb, var(--person-color) 15%, transparent); }
+.asana-mention { border-color: color-mix(in srgb, var(--person-color) 35%, transparent); background: color-mix(in srgb, var(--person-color) 7%, transparent); }
+:root[data-theme="dark"] :is(.asana-comment-author, .asana-mention) { --person-color: var(--person-dark); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) :is(.asana-comment-author, .asana-mention) { --person-color: var(--person-dark); }
+}
+
+.asana-mention-menu { max-height: 210px; overflow-y: auto; border: 1px solid var(--line); border-radius: 6px; padding: 6px; background: var(--bg); font-size: 12px; }
+.asana-mention-menu button { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; border: 0; color: var(--person-light); }
+.asana-mention-menu button[aria-selected="true"] { background: color-mix(in srgb, var(--ink) 10%, transparent); }
+.asana-mention-help { font-size: 11px; font-weight: 400; color: var(--ink-soft); }
+:root[data-theme="dark"] .asana-mention-menu button { color: var(--person-dark); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .asana-mention-menu button { color: var(--person-dark); } }

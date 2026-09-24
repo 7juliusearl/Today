@@ -1646,6 +1646,7 @@ function showAsanaBrief(task) {
     a.textContent = brief.parentURL ? 'Open parent in Asana ↗' : 'Open task in Asana ↗';
     a.target = '_blank'; a.rel = 'noopener'; content.append(a);
   }
+  if (window.webkit?.messageHandlers?.asanaComments) addAsanaComments(content, task, dialog, close);
   dialog.append(head, content); document.body.append(dialog);
   dialog.addEventListener('close', () => dialog.remove());
   dialog.addEventListener('click', event => {
@@ -1653,4 +1654,250 @@ function showAsanaBrief(task) {
     if (event.target === dialog && (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom)) dialog.close();
   });
   dialog.showModal();
+}
+
+
+function addAsanaComments(content, task, dialog, close) {
+  const bridge = window.webkit.messageHandlers.asanaComments;
+  const area = document.createElement('section'); area.className = 'asana-comments';
+  const heading = document.createElement('h3'); heading.textContent = 'Comments';
+  const label = document.createElement('label'); label.textContent = 'Conversation';
+  const select = document.createElement('select'); select.setAttribute('aria-label', label.textContent);
+  const choices = task.brief.parentURL
+    ? [['parent', 'Parent task · ' + task.brief.parentTitle], ['task', 'Assigned task · ' + task.title]]
+    : [['task', 'Task · ' + task.title]];
+  choices.forEach(([value, title]) => { const option = document.createElement('option'); option.value = value; option.textContent = title; select.append(option); });
+  label.append(select);
+  const status = document.createElement('p'); status.setAttribute('role', 'status');
+  const list = document.createElement('div'); list.className = 'asana-comment-list';
+  const refresh = document.createElement('button'); refresh.type = 'button'; refresh.textContent = 'Refresh'; refresh.setAttribute('aria-label', 'Refresh comments');
+  const more = document.createElement('button'); more.type = 'button'; more.textContent = 'Load more'; more.hidden = true;
+  const form = document.createElement('form');
+  const destination = document.createElement('label');
+  const input = document.createElement('textarea'); input.rows = 3; input.maxLength = 10000;
+  input.placeholder = 'Write a comment…'; input.setAttribute('aria-label', 'Your comment');
+  const send = document.createElement('button'); send.type = 'submit'; send.textContent = 'Post comment';
+  const hint = document.createElement('p'); hint.textContent = 'Visible to everyone with access to this task.';
+  destination.append(input); form.append(destination, hint, send);
+  const toolbar = document.createElement('div'); toolbar.className = 'asana-comments-toolbar'; toolbar.append(heading, refresh);
+  area.append(toolbar, label, status, list, more, form); content.append(area);
+  let busy = false, posting = false, next = '', count = 0;
+  const drafts = {}, ids = new Set(), offsets = new Set(), people = new Map();
+  let selected = select.value;
+  const mentionDrafts = {};
+  const mentionPicker = asanaMentionPicker(input, bridge, task.url, () => select.value === 'parent');
+  function controls(value, isPost = false) {
+    busy = value; posting = value && isPost;
+    if (value) mentionPicker.hide();
+    select.disabled = refresh.disabled = more.disabled = input.disabled = value;
+    send.disabled = value || !input.value.trim();
+    close.disabled = posting;
+  }
+  function targetLabel() {
+    destination.firstChild?.nodeType === Node.TEXT_NODE && destination.firstChild.remove();
+    destination.prepend(document.createTextNode(select.value === 'parent' ? 'Reply to parent task' : 'Reply to this task'));
+  }
+  function append(comments) {
+    for (const comment of comments || []) { if (comment.authorID) people.set(comment.authorID, {name: comment.author, photo: comment.avatar}); }
+    for (const comment of comments || []) {
+      if (ids.has(comment.id)) continue;
+      ids.add(comment.id); count++;
+      const item = document.createElement('article');
+      const by = document.createElement('strong'); by.textContent = comment.author;
+      const author = document.createElement('div'); author.className = 'asana-comment-author'; asanaPersonColor(author, comment.author);
+      author.append(asanaAvatar(comment.author, comment.avatar), by);
+      const time = document.createElement('time');
+      const date = new Date(comment.createdAt);
+      time.textContent = Number.isNaN(date.getTime()) ? '' : date.toLocaleString();
+      time.dateTime = comment.createdAt || '';
+      const text = document.createElement('p'); renderAsanaComment(text, comment, people);
+      item.append(author, time, text); list.append(item);
+    }
+  }
+  async function load(reset) {
+    if (busy) return;
+    controls(true); status.textContent = 'Loading comments…';
+    if (reset) { next = ''; count = 0; ids.clear(); offsets.clear(); list.replaceChildren(); more.hidden = true; }
+    try {
+      const result = await bridge.postMessage({action: 'load', taskURL: task.url, parent: select.value === 'parent', ...(next ? {offset: next} : {})});
+      if (!dialog.isConnected) return;
+      append(result.comments);
+      next = result.next || '';
+      if (offsets.has(next)) next = '';
+      if (next) offsets.add(next);
+      more.hidden = !next;
+      status.textContent = count ? 'Comments loaded.' : next ? 'No comments on this page. Load more to continue.' : 'No comments yet. Start the conversation.';
+    } catch (error) { status.textContent = String(error.message || error); }
+    finally { controls(false); }
+  }
+  select.addEventListener('change', () => {
+    drafts[selected] = input.value; mentionDrafts[selected] = mentionPicker.snapshot();
+    selected = select.value; input.value = drafts[selected] || ''; mentionPicker.restore(mentionDrafts[selected] || []);
+    targetLabel(); load(true);
+  });
+  input.addEventListener('input', () => { drafts[selected] = input.value; send.disabled = busy || !input.value.trim(); });
+  refresh.addEventListener('click', () => load(true));
+  more.addEventListener('click', () => load(false));
+  dialog.addEventListener('cancel', event => { if (posting) event.preventDefault(); });
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (busy || !input.value.trim()) return;
+    controls(true, true); status.textContent = 'Posting comment…';
+    try {
+      const result = await bridge.postMessage({action: 'post', taskURL: task.url, parent: select.value === 'parent', text: input.value, mentions: mentionPicker.snapshot()});
+      append(result.comments); input.value = ''; drafts[selected] = ''; mentionPicker.restore([]);
+      status.textContent = 'Comment posted to ' + select.selectedOptions[0].textContent + '.';
+    } catch (error) { status.textContent = String(error.message || error); }
+    finally { controls(false); }
+  });
+  // A post must finish before a click outside the brief can close it.
+  dialog.addEventListener('click', event => { if (posting && event.target === dialog) event.stopImmediatePropagation(); }, true);
+  targetLabel(); load(true);
+}
+
+
+function asanaAvatar(name, photo) {
+  const avatar = document.createElement('span'); avatar.className = 'asana-avatar';
+  avatar.setAttribute('aria-hidden', 'true');
+  const initials = String(name || '?').trim().split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase();
+  avatar.textContent = initials;
+  try {
+    const url = new URL(photo);
+    if (url.protocol === 'https:' && !url.username && !url.password) {
+      const img = document.createElement('img'); img.alt = ''; img.referrerPolicy = 'no-referrer';
+      img.addEventListener('error', () => img.remove()); img.src = url.href;
+      avatar.append(img);
+    }
+  } catch (_) { /* Initials remain when no profile photo is available. */ }
+  return avatar;
+}
+
+function renderAsanaComment(target, comment, people = new Map()) {
+  const profile = /https:\/\/app\.asana\.com\/(?:\d+\/)*profile\/\d+(?:\?[^\s<]*)?/g;
+  function plain(text) {
+    let end = 0;
+    for (const match of text.matchAll(profile)) {
+      target.append(document.createTextNode(text.slice(end, match.index)));
+      mention('Teammate'); end = match.index + match[0].length;
+    }
+    target.append(document.createTextNode(text.slice(end)));
+  }
+  function mention(name, id) {
+    const person = people.get(id);
+    const chip = document.createElement('span'); chip.className = 'asana-mention';
+    const clean = name && !name.includes('https://') ? name.replace(/^@/, '') : 'Teammate';
+    asanaPersonColor(chip, clean);
+    chip.append(asanaAvatar(clean, person?.photo), document.createTextNode(clean)); target.append(chip);
+  }
+  if (comment.htmlText) {
+    // Parse inert XML, then create our own text/spans. Never insert API HTML or links.
+    const doc = new DOMParser().parseFromString(comment.htmlText, 'application/xml');
+    if (!doc.querySelector('parsererror') && doc.documentElement.localName === 'body') {
+      function walk(node) {
+        if (node.nodeType === Node.TEXT_NODE) { plain(node.textContent); return; }
+        if (node.nodeType !== Node.ELEMENT_NODE) return;
+        const tag = node.localName.toLowerCase();
+        if (['script', 'style', 'img', 'object', 'iframe'].includes(tag)) return;
+        if (tag === 'a' && (node.getAttribute('data-asana-type') === 'user' || /\/profile\/\d+/.test(node.getAttribute('href') || ''))) {
+          mention(node.textContent, node.getAttribute('data-asana-gid')); return;
+        }
+        if (tag === 'br') { target.append(document.createTextNode('\n')); return; }
+        Array.from(node.childNodes).forEach(walk);
+        if (['p', 'div', 'li'].includes(tag)) target.append(document.createTextNode('\n'));
+      }
+      walk(doc.documentElement); return;
+    }
+  }
+  plain(String(comment.text || ''));
+}
+
+
+function asanaPersonColor(element, name) {
+  const palette = [
+    ['#6740a0', '#ccb0ff'], ['#076a70', '#7cdbd5'],
+    ['#99421c', '#ffc097'], ['#305da0', '#a6c8ff'],
+    ['#9b3663', '#ffadd0'], ['#426b28', '#b5da8b']
+  ];
+  let hash = 0;
+  for (const char of String(name || '').normalize('NFKC').trim().toLowerCase()) hash = (hash * 31 + char.codePointAt(0)) >>> 0;
+  const colors = palette[hash % palette.length];
+  element.style.setProperty('--person-light', colors[0]);
+  element.style.setProperty('--person-dark', colors[1]);
+}
+
+
+function asanaMentionPicker(input, bridge, taskURL, parent) {
+  const menu = document.createElement('div'); menu.className = 'asana-mention-menu'; menu.hidden = true;
+  menu.id = 'asana-mention-options'; menu.setAttribute('role', 'listbox'); menu.setAttribute('aria-label', 'Coworkers');
+  const note = document.createElement('small'); note.className = 'asana-mention-help'; note.textContent = 'Type @ to tag a coworker. Select a name to create a real mention.';
+  input.parentElement.append(menu, note);
+  input.setAttribute('aria-autocomplete', 'list'); input.setAttribute('aria-controls', menu.id);
+  let users, loading, previous = input.value, mentions = [], matches = [], active = 0, queryRange;
+  function hide() { menu.hidden = true; input.setAttribute('aria-expanded', 'false'); input.removeAttribute('aria-activedescendant'); }
+  function summary() { note.textContent = mentions.length ? 'Tagged: ' + mentions.map(m => input.value.slice(m.start, m.start + m.length)).join(', ') : 'Type @ to tag a coworker. Select a name to create a real mention.'; }
+  function sync() {
+    const value = input.value;
+    let left = 0, oldRight = previous.length, newRight = value.length;
+    while (left < oldRight && left < newRight && previous[left] === value[left]) left++;
+    while (oldRight > left && newRight > left && previous[oldRight - 1] === value[newRight - 1]) { oldRight--; newRight--; }
+    const delta = newRight - oldRight;
+    mentions = mentions.filter(m => m.start + m.length <= left || m.start >= oldRight).map(m => m.start >= oldRight ? {...m, start:m.start + delta} : m);
+    previous = value; summary();
+  }
+  function query() {
+    if (input.disabled || input.selectionStart !== input.selectionEnd) return null;
+    const end = input.selectionStart;
+    if (mentions.some(m => end > m.start && end <= m.start + m.length)) return null;
+    const match = input.value.slice(0, end).match(/(?:^|[\s(])@([^@\n]{0,60})$/);
+    if (!match) return null;
+    const start = end - match[1].length - 1;
+    if (mentions.some(m => start >= m.start && start < m.start + m.length)) return null;
+    return {start, end, text:match[1].toLowerCase()};
+  }
+  function highlight() {
+    Array.from(menu.children).forEach((el, i) => el.setAttribute('aria-selected', String(i === active)));
+    input.setAttribute('aria-activedescendant', 'asana-person-' + active);
+  }
+  function choose(person) {
+    const range = query(); if (!range || input.disabled) return;
+    const text = '@' + person.name;
+    input.setRangeText(text + ' ', range.start, range.end, 'end'); sync();
+    mentions.push({id:person.id, start:range.start, length:text.length});
+    input.dispatchEvent(new Event('input')); hide(); summary(); input.focus();
+  }
+  async function show() {
+    queryRange = query(); if (!queryRange) { hide(); return; }
+    matches = [];
+    menu.hidden = false; input.setAttribute('aria-expanded', 'true'); menu.replaceChildren();
+    if (!users) {
+      menu.textContent = 'Loading coworkers…';
+      try {
+        if (!loading) loading = bridge.postMessage({action:'people', taskURL, parent:parent()});
+        const result = await loading; users = result.users || [];
+      } catch (error) { menu.textContent = String(error.message || error); return; }
+      finally { loading = null; }
+    }
+    queryRange = query(); if (!queryRange || !input.isConnected) { hide(); return; }
+    matches = users.filter(u => u.name.toLowerCase().includes(queryRange.text)).slice(0, 8); active = 0;
+    menu.replaceChildren();
+    for (const [i, person] of matches.entries()) {
+      const option = document.createElement('button'); option.type = 'button'; option.setAttribute('role', 'option'); option.id = 'asana-person-' + i;
+      asanaPersonColor(option, person.name);
+      const duplicate = users.filter(u => u.name === person.name).length > 1;
+      option.append(asanaAvatar(person.name, person.photo), document.createTextNode(person.name + (duplicate ? ' · ' + person.id.slice(-6) : '')));
+      option.addEventListener('mousedown', event => event.preventDefault()); option.addEventListener('click', () => choose(person)); menu.append(option);
+    }
+    if (!matches.length) menu.textContent = 'No matching coworkers. Try another name.';
+    highlight();
+  }
+  input.addEventListener('input', () => { sync(); show(); });
+  input.addEventListener('click', show);
+  input.addEventListener('keydown', event => {
+    if (menu.hidden) return;
+    if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); hide(); }
+    else if (matches.length && ['ArrowDown', 'ArrowUp'].includes(event.key)) { event.preventDefault(); active = (active + (event.key === 'ArrowDown' ? 1 : matches.length - 1)) % matches.length; highlight(); }
+    else if (matches.length && event.key === 'Enter') { event.preventDefault(); choose(matches[active]); }
+  });
+  input.addEventListener('blur', () => setTimeout(hide, 150));
+  return {hide, snapshot: () => mentions.map(m => ({...m})), restore: value => { mentions = value.map(m => ({...m})); previous = input.value; hide(); summary(); }};
 }

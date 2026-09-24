@@ -15,6 +15,7 @@ xcrun swiftc -parse-as-library -target "$today_arch-apple-macosx14.0" \
   "$REPO_DIR/prototype/calendar/DashboardExtras.swift" \
   "$REPO_DIR/prototype/calendar/AppLifecycle.swift" \
   "$REPO_DIR/prototype/calendar/WindowSpace.swift" \
+  "$REPO_DIR/prototype/calendar/AsanaMentions.swift" \
   "$REPO_DIR/prototype/calendar/AsanaAuth.swift" \
   "$REPO_DIR/prototype/calendar/AsanaBriefs.swift" \
   "$REPO_DIR/prototype/calendar/MailData.swift" \

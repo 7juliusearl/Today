@@ -189,6 +189,7 @@ struct DashboardWebView: NSViewRepresentable {
         configuration.userContentController.add(context.coordinator, name: "mailOpen")
         configuration.userContentController.add(context.coordinator, name: "mailOpenApp")
         configuration.userContentController.add(context.coordinator, name: "respondInCalendar")
+        configuration.userContentController.addScriptMessageHandler(context.coordinator, contentWorld: .page, name: "asanaComments")
         let view = WKWebView(frame: .zero, configuration: configuration)
         view.navigationDelegate = context.coordinator
         return view
@@ -200,7 +201,7 @@ struct DashboardWebView: NSViewRepresentable {
         context.coordinator.revision = model.revision
         context.coordinator.update(model.script, in: view)
     }
-    class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
+    class Coordinator: NSObject, WKScriptMessageHandler, WKScriptMessageHandlerWithReply, WKNavigationDelegate {
         let model: CalendarModel
         var revision = -1
         var controlsScript = ""
@@ -240,6 +241,28 @@ struct DashboardWebView: NSViewRepresentable {
             applyPending(in: webView)
         }
         init(_ model: CalendarModel) { self.model = model }
+        func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage,
+                                   replyHandler: @escaping (Any?, String?) -> Void) {
+            guard message.name == "asanaComments", message.frameInfo.isMainFrame,
+                  message.frameInfo.request.url?.isFileURL == true,
+                  let body = message.body as? [String: Any], let url = body["taskURL"] as? String,
+                  let parent = body["parent"] as? Bool, let action = body["action"] as? String,
+                  ["load", "post", "people"].contains(action), action != "post" || body["text"] is String else {
+                replyHandler(nil, "Invalid comment request."); return
+            }
+            Task { @MainActor in
+                do {
+                    let result: [String: Any]
+                    if action == "people" { result = try await model.asanaBriefs.users(taskURL: url) }
+                    else {
+                        result = try await model.asanaBriefs.comments(taskURL: url, parent: parent,
+                            text: action == "post" ? body["text"] as? String : nil, offset: body["offset"] as? String,
+                            mentions: body["mentions"] as? [[String: Any]] ?? [])
+                    }
+                    replyHandler(result, nil)
+                } catch { replyHandler(nil, error.localizedDescription) }
+            }
+        }
         func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
             guard message.frameInfo.isMainFrame, message.frameInfo.request.url?.isFileURL == true else { return }
             if message.name == "dashboardControl", let action = message.body as? String {
@@ -394,6 +417,7 @@ struct CalendarSettingsView: View {
                                 }
                             }
                             Text(model.asanaBriefs.auth.message).font(.caption).foregroundStyle(.secondary)
+                            Text("To enable comments on an existing connection, choose Reconnect Asana and approve comment access. Today posts only when you press Post comment.").font(.caption).foregroundStyle(.secondary)
                             if model.asanaBriefs.auth.connected {
                                 Picker("Workspace", selection: Binding(get: { model.asanaBriefs.workspace }, set: { model.asanaBriefs.setWorkspace($0) })) {
                                     Text("Choose a workspace").tag("")

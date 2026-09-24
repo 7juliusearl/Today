@@ -1,0 +1,66 @@
+(async () => {
+  const assert = (value, message) => { if (!value) throw Error(message); };
+  const tick = () => new Promise(resolve => setTimeout(resolve, 30));
+  const requests = []; let fail = false, releasePost;
+  Object.defineProperty(window, 'webkit', {configurable: true, value: {messageHandlers: {asanaComments: {postMessage: async request => {
+    requests.push(request);
+    if (request.action === 'people') return {users:[{id:'123',name:'Alex Morgan',photo:''},{id:'456',name:'Sam Lee',photo:''}]};
+    if (request.action === 'post') {
+      await new Promise(resolve => { releasePost = resolve; });
+      if (fail) throw Error('Delivery could not be confirmed. Refresh before posting again.');
+      return {comments: [{id:'posted', author:'Me', text:request.text, createdAt:'2026-09-24T19:00:00Z'}]};
+    }
+    return {comments: [{id:request.parent ? 'parent' : 'task', author:'Coworker', text:'<img src=x onerror=alert(1)>', createdAt:'2026-09-24T18:00:00Z'}], next: request.offset ? '' : 'page2'};
+  }}}}});
+  showAsanaBrief({title:'My edit', url:'https://app.asana.com/0/1/2', brief:{description:'', parentTitle:'Parent brief', parentDescription:'Brief', parentURL:'https://app.asana.com/0/1/3'}});
+  await tick();
+  const dialog = document.getElementById('asana-brief-dialog'), area = dialog.querySelector('.asana-comments');
+  const select = area.querySelector('select'), input = area.querySelector('textarea'), form = area.querySelector('form');
+  const send = form.querySelector('button'), close = dialog.querySelector('header button');
+  assert(requests[0].parent === true, 'Parent comments load first');
+  assert(!('offset' in requests[0]), 'First page omits empty pagination cursor');
+  assert(area.textContent.includes('<img src=x onerror=alert(1)>') && !area.querySelector('img'), 'Comments are safe literal text');
+  input.value = 'Parent draft'; input.dispatchEvent(new Event('input'));
+  select.value = 'task'; select.dispatchEvent(new Event('change')); await tick();
+  assert(requests.at(-1).parent === false && input.value === '', 'Task has separate conversation and draft');
+  input.value = 'Task draft'; input.dispatchEvent(new Event('input'));
+  select.value = 'parent'; select.dispatchEvent(new Event('change')); await tick();
+  assert(input.value === 'Parent draft', 'Switching preserves parent draft');
+  const more = Array.from(area.querySelectorAll('button')).find(b => b.textContent === 'Load more');
+  more.click(); await tick();
+  assert(requests.at(-1).offset === 'page2' && more.hidden, 'Pagination follows cursor and ends');
+  assert(area.querySelectorAll('article').length === 1, 'Pagination deduplicates comments');
+  fail = true; form.dispatchEvent(new Event('submit', {cancelable:true})); await tick();
+  assert(send.disabled && select.disabled && close.disabled, 'Posting locks duplicate submission and destination');
+  form.dispatchEvent(new Event('submit', {cancelable:true}));
+  assert(requests.filter(r => r.action === 'post').length === 1, 'No duplicate post');
+  releasePost(); await tick();
+  assert(input.value === 'Parent draft' && area.textContent.includes('Delivery could not be confirmed'), 'Uncertain delivery keeps draft and provides recovery');
+  fail = false; form.dispatchEvent(new Event('submit', {cancelable:true})); await tick(); releasePost(); await tick();
+  assert(input.value === '' && area.textContent.includes('Comment posted to Parent task'), 'Successful post clears draft and labels destination');
+  assert(area.querySelectorAll('article').length === 2, 'Posted comment is shown');
+  const rich = document.createElement('p');
+  renderAsanaComment(rich, {htmlText:'<body><a data-asana-type="user" href="https://app.asana.com/1/2/profile/3">Alex Morgan</a> Please review.<script>alert(1)</script></body>'});
+  assert(rich.textContent.includes('Alex Morgan') && rich.textContent.includes('Please review.'), 'Named mention preserves message');
+  assert(!rich.querySelector('a,script') && rich.querySelector('.asana-avatar'), 'Mention is non-clickable with avatar and no injected script');
+  const fallback = document.createElement('p');
+  renderAsanaComment(fallback, {text:'https://app.asana.com/1/2/profile/3https://app.asana.com/1/2/profile/4 Hello'});
+  assert(!fallback.textContent.includes('https://') && fallback.querySelectorAll('.asana-mention').length === 2 && fallback.textContent.includes('Hello'), 'Adjacent raw profile URLs become mentions');
+  input.value = '@Al'; input.setSelectionRange(3,3); input.dispatchEvent(new Event('input')); await tick();
+  const option = area.querySelector('.asana-mention-menu button');
+  assert(option.textContent.includes('Alex Morgan'), 'Picker filters coworkers');
+  option.click();
+  assert(input.value === '@Alex Morgan ' && area.textContent.includes('Tagged: @Alex Morgan'), 'Selecting creates a tracked tag');
+  input.setSelectionRange(0,0); input.setRangeText('Hi ',0,0,'end'); input.dispatchEvent(new Event('input'));
+  form.dispatchEvent(new Event('submit', {cancelable:true})); await tick();
+  assert(requests.at(-1).mentions[0].id === '123' && requests.at(-1).mentions[0].start === 3, 'Tag offset follows edits before name');
+  releasePost(); await tick();
+  input.value = '@Sam'; input.setSelectionRange(4,4); input.dispatchEvent(new Event('input')); await tick();
+  input.dispatchEvent(new KeyboardEvent('keydown', {key:'Enter',cancelable:true}));
+  assert(input.value === '@Sam Lee ', 'Keyboard selects real tag');
+  input.setRangeText('X',1,2,'end'); input.dispatchEvent(new Event('input'));
+  form.dispatchEvent(new Event('submit', {cancelable:true})); await tick();
+  assert(requests.at(-1).mentions.length === 0, 'Editing tagged name removes old identity');
+  releasePost(); await tick();
+  return 'PASS: parent/task routing, safe text, pagination/deduplication, draft preservation, duplicate prevention, uncertain delivery and success.';
+})()

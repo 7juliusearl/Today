@@ -121,6 +121,126 @@ import Security
             }
         }
     }
+    private var mentionPeople: [[String: String]] = []
+    private var peopleGeneration = -1
+    private var peopleChecked = Date.distantPast
+    func users(taskURL: String) async throws -> [String: Any] {
+        guard enabled, auth.connected, !workspace.isEmpty,
+              let id = Self.taskID(taskURL), cache[id] != nil else {
+            throw AsanaAuth.AuthError("Connect Asana, choose a workspace, and reopen the brief.")
+        }
+        let current = generation
+        if peopleGeneration == current, Date().timeIntervalSince(peopleChecked) < 300 { return ["users": mentionPeople] }
+        let token = try await auth.accessToken()
+        var people: [[String: String]] = [], offset: String?, seen = Set<String>()
+        repeat {
+            guard current == generation, enabled else { throw CancellationError() }
+            var url = URLComponents(string: "https://app.asana.com/api/1.0/users")!
+            url.queryItems = [URLQueryItem(name: "workspace", value: workspace), URLQueryItem(name: "limit", value: "100"),
+                URLQueryItem(name: "opt_fields", value: "gid,name,photo.image_60x60")]
+            if let offset { url.queryItems?.append(URLQueryItem(name: "offset", value: offset)) }
+            var request = URLRequest(url: url.url!); request.timeoutInterval = 20
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            let (data, response) = try await session.data(for: request)
+            guard (response as? HTTPURLResponse)?.statusCode == 200 else {
+                throw AsanaAuth.AuthError("Could not load coworkers. Reconnect Asana in Settings to approve people access.")
+            }
+            let object = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+            guard let rows = object?["data"] as? [[String: Any]] else { throw AsanaAuth.AuthError("Could not read coworkers. Try again.") }
+            for row in rows {
+                if let gid = row["gid"] as? String, let name = row["name"] as? String {
+                    people.append(["id": gid, "name": name, "photo": (row["photo"] as? [String: Any])?["image_60x60"] as? String ?? ""])
+                }
+            }
+            offset = (object?["next_page"] as? [String: Any])?["offset"] as? String
+            if let offset, !seen.insert(offset).inserted { throw AsanaAuth.AuthError("Coworker loading stalled. Try again.") }
+            guard people.count <= 10000 else { throw AsanaAuth.AuthError("This workspace has too many people to load.") }
+        } while offset != nil
+        guard current == generation, enabled else { throw CancellationError() }
+        mentionPeople = people; peopleGeneration = current; peopleChecked = Date()
+        return ["users": people]
+    }
+    private var postingComments = Set<String>()
+    // Only the task represented by a loaded brief, or its verified parent, may be addressed.
+    func comments(taskURL: String, parent: Bool, text: String?, offset: String?, mentions: [[String: Any]] = []) async throws -> [String: Any] {
+        guard enabled, auth.connected, let id = Self.taskID(taskURL), let brief = cache[id],
+              let target = parent ? Self.taskID(brief.parentURL) : id else {
+            throw NSError(domain: "Asana", code: 1, userInfo: [NSLocalizedDescriptionKey: "Reconnect Asana in Settings and reopen the task brief."])
+        }
+        let current = generation
+        let isPost = text != nil
+        if let text {
+            guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, text.count <= 10000,
+                  postingComments.insert(target).inserted else {
+                throw NSError(domain: "Asana", code: 2, userInfo: [NSLocalizedDescriptionKey: "Enter a comment of up to 10,000 characters and wait for any current post to finish."])
+            }
+        }
+        defer { if isPost { postingComments.remove(target) } }
+        let token = try await auth.accessToken()
+        guard current == generation, enabled else { throw CancellationError() }
+        var url = URLComponents(string: "https://app.asana.com/api/1.0/tasks/\(target)/stories")!
+        let commentFields = "gid,resource_subtype,text,html_text,created_at,created_by.name"
+        url.queryItems = [URLQueryItem(name: "opt_fields", value: commentFields + (isPost ? "" : ",created_by.gid,created_by.photo.image_60x60"))]
+        if !isPost {
+            url.queryItems?.append(URLQueryItem(name: "limit", value: "100"))
+            if let offset, !offset.isEmpty, offset.count <= 4096 { url.queryItems?.append(URLQueryItem(name: "offset", value: offset)) }
+        }
+        var request = URLRequest(url: url.url!); request.timeoutInterval = 30
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        if let text {
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            let body: [String: String]
+            if mentions.isEmpty { body = ["text": text] }
+            else {
+                guard peopleGeneration == current else { throw AsanaAuth.AuthError("Reload the coworker picker before posting mentions.") }
+                body = ["html_text": try asanaMentionHTML(text, mentions: mentions, users: mentionPeople)]
+            }
+            request.httpBody = try JSONSerialization.data(withJSONObject: ["data": body])
+        }
+        var result: (Data, URLResponse)
+        do {
+            result = try await session.data(for: request)
+            // Profile photos may require access beyond stories:read. Fall back only
+            // for reads; a write must never be retried automatically.
+            if !isPost, (result.1 as? HTTPURLResponse)?.statusCode == 403 {
+                guard current == generation, enabled else { throw CancellationError() }
+                url.queryItems?[0] = URLQueryItem(name: "opt_fields", value: commentFields)
+                request.url = url.url
+                result = try await session.data(for: request)
+            }
+        }
+        catch {
+            throw NSError(domain: "Asana", code: 3, userInfo: [NSLocalizedDescriptionKey: isPost
+                ? "Delivery could not be confirmed. Refresh comments or check Asana before posting again to avoid duplicates."
+                : "Could not load comments. Check your connection and try again."])
+        }
+        guard let response = result.1 as? HTTPURLResponse, (200...299).contains(response.statusCode) else {
+            let status = (result.1 as? HTTPURLResponse)?.statusCode ?? 0
+            let message = [401, 403].contains(status)
+                ? "Comment access was denied. Reconnect Asana in Settings to approve comment permissions, and check access to this task."
+                : isPost ? "Posting was not confirmed. Refresh comments or check Asana before trying again."
+                : "Could not load comments (Asana \(status)). Try refreshing."
+            throw NSError(domain: "Asana", code: status, userInfo: [NSLocalizedDescriptionKey: message])
+        }
+        guard current == generation, enabled else { throw CancellationError() }
+        let object = (try? JSONSerialization.jsonObject(with: result.0)) as? [String: Any]
+        guard let object, isPost ? object["data"] is [String: Any] : object["data"] is [[String: Any]] else {
+            throw NSError(domain: "Asana", code: 4, userInfo: [NSLocalizedDescriptionKey: isPost
+                ? "Asana returned an unexpected response. Refresh comments before posting again to avoid duplicates."
+                : "Could not read Asana’s comments. Try refreshing."])
+        }
+        let records = isPost ? [object["data"] as! [String: Any]] : object["data"] as! [[String: Any]]
+        let comments: [[String: Any]] = records.filter { $0["resource_subtype"] as? String == "comment_added" }.map {
+            ["id": $0["gid"] as? String ?? "", "text": $0["text"] as? String ?? "",
+             "htmlText": $0["html_text"] as? String ?? "",
+             "authorID": ($0["created_by"] as? [String: Any])?["gid"] as? String ?? "",
+             "avatar": (($0["created_by"] as? [String: Any])?["photo"] as? [String: Any])?["image_60x60"] as? String ?? "",
+             "author": ($0["created_by"] as? [String: Any])?["name"] as? String ?? "Asana user",
+             "createdAt": $0["created_at"] as? String ?? ""]
+        }
+        return ["comments": comments, "next": (object["next_page"] as? [String: Any])?["offset"] as? String ?? ""]
+    }
     private func fetchAssigned(token: String, workspace: String) async throws -> [AsanaPayload.Task] {
         struct Page: Decodable {
             struct Next: Decodable { let offset: String }

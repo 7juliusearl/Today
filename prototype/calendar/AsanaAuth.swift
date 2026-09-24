@@ -46,7 +46,7 @@ import Security
             let state = try Self.random(), verifier = try Self.random()
             let challenge = Data(SHA256.hash(data: Data(verifier.utf8))).base64EncodedString().replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
             var url = URLComponents(string: "https://app.asana.com/-/oauth_authorize")!
-            url.queryItems = [URLQueryItem(name: "client_id", value: Self.clientID), URLQueryItem(name: "redirect_uri", value: Self.redirect), URLQueryItem(name: "response_type", value: "code"), URLQueryItem(name: "state", value: state), URLQueryItem(name: "scope", value: "tasks:read workspaces:read"), URLQueryItem(name: "code_challenge_method", value: "S256"), URLQueryItem(name: "code_challenge", value: challenge)]
+            url.queryItems = [URLQueryItem(name: "client_id", value: Self.clientID), URLQueryItem(name: "redirect_uri", value: Self.redirect), URLQueryItem(name: "response_type", value: "code"), URLQueryItem(name: "state", value: state), URLQueryItem(name: "scope", value: "tasks:read workspaces:read stories:read stories:write users:read"), URLQueryItem(name: "code_challenge_method", value: "S256"), URLQueryItem(name: "code_challenge", value: challenge)]
             busy = true; message = "Finish connecting in the sign-in window."; onChange?()
             authSession = ASWebAuthenticationSession(url: url.url!, callbackURLScheme: "today-asana") { [weak self] result, error in
                 Task { @MainActor in
