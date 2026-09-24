@@ -13,17 +13,14 @@ If Today asks you to locate its project, choose this whole folder. This can happ
 
 Open this entire folder as a local project in Codex or Claude Code (or a Claude mode with permission to edit local files). Ordinary chat alone cannot edit these files.
 
-Try: “Help me personalize Today. Ask about my weekly schedule and links, then update this project.”
+Try: “Help me personalize Today. Ask about my preferred design and links, then update this project.”
 
 Or: “Make my calendar wider and hide the verse.”
 
 - custom/user.css and custom/user.js: your personal styles, layout overrides, and shortcuts; preserved during updates.
 - dashboard/: standard app files. Direct edits here require a manual merge before an update can install.
-- data/schedule.js: your personal weekly rhythm; starts blank.
-- data/plan.js: your personal goals/onboarding plan; starts blank.
-- examples/: generic examples for the AI to adapt, not your real data.
 
-Restart Today after changing dashboard files. Schedule and plan edits appear when Today refreshes. No rebuild is needed for these customizations, and neither AI app needs to stay open for Today to work. Settings includes an Open customization folder button.
+Restart Today after changing dashboard files. No rebuild is needed for these customizations, and neither AI app needs to stay open for Today to work. Settings includes an Open customization folder button.
 
 Calendar/Mail contents are read into memory, not exported into this project. Name, calendar/mailbox selection, permissions, and setup completion belong to your macOS user account. Copying this pristine folder to another Mac does not copy those settings. Weather and the daily verse require internet; the dashboard also uses optional online fonts and shortcut icons.
 
@@ -40,7 +37,7 @@ In Today on your Mac, open **Settings → Devices → Start sharing**. Keep both
 
 - Sharing is off by default. Enable **Resume sharing when Today opens** to restart it automatically on the connected network. Pairing is remembered on this Mac across app restarts and updates.
 - The Mac must stay awake with Today open. The iPad polls the latest Mac snapshot every 15 seconds; the Mac’s existing Calendar/Mail refresh timing still applies. Refresh on the iPad fetches the latest available snapshot, not a new Mail sync.
-- Calendar, Mail summaries, Asana tasks, weekly rhythm, weather, and plans come from your Mac. The focus timer runs independently on the iPad, catches up after sleep, and does not send background alarm notifications.
+- Calendar, Mail summaries, Asana tasks, and weather come from your Mac. The focus timer runs independently on the iPad, catches up after sleep, and does not send background alarm notifications.
 - Respond to invitations and open individual email messages on your Mac. The companion cannot remotely operate Mac apps. Web shortcuts open on the iPad. Native custom scripts are not loaded by the companion.
 - This is a local HTTP connection, **not encrypted**. Use only a trusted private network; do not forward port 8787 to the internet. Anyone with the pairing link has read access while sharing runs.
 - **Stop Sharing** pauses access and disables automatic resume, but remembers pairing. **Forget paired devices** revokes all old pairing links and browser sessions; scan a new QR code afterward. Data already displayed on an iPad may remain visible as an offline snapshot until closed or a revocation response is received.

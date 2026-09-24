@@ -414,7 +414,12 @@ function renderWorkScheduleItem(item) {
     </div>`;
 }
 
+function isCoworkerDashboard() {
+  return document.documentElement.dataset.edition === "coworker";
+}
+
 function todaysWorkSchedule() {
+  if (isCoworkerDashboard()) return { schedule: null, todayName: null, today: null };
   const schedule = window.WORK_SCHEDULE;
   if (!schedule || !schedule.week) return { schedule: null, todayName: null, today: null };
 
@@ -612,7 +617,8 @@ function initDashboardSections() {
     ["upcoming", "Coming up", ".bento-comingup"], ["invites", "Pending invitations", ".bento-invites"],
     ["timer", "Focus timer", ".bento-focus"], ["plan", "Learn & Observe / personal plan", ".bento-plan"],
     ["verse", "Verse of the day", ".bento-verse"], ["links", "Quick links", ".quicklinks"]
-  ];
+  ].filter(([id]) => !isCoworkerDashboard() || id !== "plan")
+    .map(([id, label, selector]) => [id, isCoworkerDashboard() && id === "welcome" ? "Welcome & weather" : label, selector]);
   let selected = new Set(sections.map(([id]) => id));
   try {
     const saved = JSON.parse(localStorage.getItem("today-dashboard-sections"));
@@ -676,7 +682,8 @@ function initFocusSections() {
     ["plan", "Learn & Observe / personal plan", ".bento-plan"],
     ["verse", "Verse of the day", ".bento-verse"],
     ["links", "Quick links", ".quicklinks"],
-  ];
+  ].filter(([id]) => !isCoworkerDashboard() || id !== "plan")
+    .map(([id, label, selector]) => [id, isCoworkerDashboard() && id === "welcome" ? "Welcome & weather" : label, selector]);
   let selected = new Set(sections.map(([id]) => id));
   try {
     const saved = JSON.parse(localStorage.getItem("today-focus-sections"));
@@ -819,7 +826,7 @@ function initFocusTimer() {
 }
 
 function renderOnboardingPlan() {
-  const plan = window.ONBOARDING_PLAN;
+  const plan = isCoworkerDashboard() ? null : window.ONBOARDING_PLAN;
   const card = document.querySelector(".bento-plan");
   if (!plan || !plan.startDate || !plan.phases) {
     if (card) card.hidden = true;

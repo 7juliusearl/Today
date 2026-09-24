@@ -42,9 +42,24 @@ struct IntroView: View {
                         VStack(alignment: .leading, spacing: 6) {
                             Text("WELCOME TO TODAY").font(.system(size: 10, weight: .bold)).tracking(3).foregroundStyle(accent)
                             Text("A little setup. A clearer day.").font(.system(size: 32, weight: .bold))
-                            Text("Your calendar, inbox, and daily rhythm. Together on your Mac.").foregroundStyle(.secondary)
+                            Text("Your calendar, inbox, and tasks. Together on your Mac.").foregroundStyle(.secondary)
                         }
                     }
+                    VStack(alignment: .leading, spacing: 10) {
+                        Label("Before you begin", systemImage: "info.circle").font(.headline)
+                        Text("Today uses the accounts and calendars already connected to this Mac. It doesn’t sign in to Google or Asana directly.")
+                        ViewThatFits(in: .horizontal) {
+                            HStack { setupButtons }
+                            VStack(alignment: .leading) { setupButtons }
+                        }
+                        Text("If you can’t see an event, task calendar, or email in the Apple app, Today can’t show it yet. Asana calendar subscriptions may take time to refresh.")
+                            .foregroundStyle(.secondary)
+                    }
+                    .font(.callout)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(16)
+                    .background(accent.opacity(isDark ? 0.10 : 0.06), in: RoundedRectangle(cornerRadius: 14))
+                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(accent.opacity(0.25)))
                     HStack {
                         Text("Let’s get you connected").font(.headline)
                         Spacer()
@@ -146,6 +161,13 @@ struct IntroView: View {
             .opacity(enabled ? 1 : 0.75)
     }
 
+    @ViewBuilder private var setupButtons: some View {
+        ForEach(ConnectionGuide.allCases, id: \.self) { guide in
+            Button("Set up \(guide.rawValue)") { ConnectionGuideWindow.shared.show(guide) }
+                .buttonStyle(.bordered)
+        }
+    }
+
     private func openPrivacy(_ pane: String) {
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_\(pane)") { NSWorkspace.shared.open(url) }
     }
@@ -159,5 +181,107 @@ struct IntroView: View {
                 invitationsAllowed = true
             } catch { invitationError = "Calendar automation wasn’t connected. Allow Today in Automation settings, then retry, or skip for now." }
         }
+    }
+}
+
+// A separate utility panel stays visible while the user works in Mail or Calendar.
+private enum ConnectionGuide: String, CaseIterable {
+    case gmail = "Gmail", calendar = "Google Calendar", asana = "Asana"
+    var steps: [String] {
+        switch self {
+        case .gmail: return [
+            "Open Apple Mail. Choose Mail → Add Account, select Google, and continue through Google’s sign-in. If the account is already added, enable Mail for it in System Settings → Internet Accounts.",
+            "Let Mail sync, then check that your work inbox and messages appear.",
+            "Return to Today’s Apple Mail setup. Click Connect / reload mailboxes, choose your work inbox, then Use mailbox. Allow access to Mail when macOS asks."
+        ]
+        case .calendar: return [
+            "Open Apple Calendar. In Calendar → Settings (or Preferences) → Accounts, click + and choose Google. Sign in to your work account. If it’s already added, enable Calendars in System Settings → Internet Accounts.",
+            "Wait for your calendars and events to appear in Apple Calendar. For missing shared calendars, use Google’s Calendar sync page linked below, select the calendars, then refresh Apple Calendar.",
+            "Return to Today and choose Allow Calendar. Pick your primary calendar. You can select additional calendars in Today’s Settings → Calendars."
+        ]
+        case .asana: return [
+            "In Asana, open My tasks. Click the small down arrow beside the My tasks title at the top—not the arrow beside Add task.",
+            "Open Sync/Export, then choose Google Calendar. This is the recommended option for our team, since we use Google for our work calendars.",
+            "Follow Asana’s instructions to add the task calendar to your work Google Calendar. Confirm that it appears there and includes your dated tasks.",
+            "Make sure the same Google account is connected to Apple Calendar on this Mac. If the Asana calendar is missing, open Choose Google calendars to sync below, enable it, save, and refresh Apple Calendar.",
+            "Once the task calendar appears in Apple Calendar, open Today’s Settings → Calendars → Asana calendar subscription. Click Reload calendars, select it, and Save."
+
+        ]
+        }
+    }
+    var note: String {
+        self == .asana ? "Only dated tasks are included. Calendar subscriptions can update slowly; complete and edit tasks in Asana." : "Today reads the Apple apps on this Mac. Signing in happens with Google, not inside Today."
+    }
+    var helpURL: URL {
+        URL(string: self == .gmail ? "https://support.apple.com/kb/ht5361" : self == .calendar ? "https://support.google.com/calendar/answer/99358" : "https://help.asana.com/s/article/calendars-and-asana")!
+    }
+}
+
+@MainActor private final class ConnectionGuideWindow {
+    static let shared = ConnectionGuideWindow()
+    private var panel: NSPanel?
+    func show(_ guide: ConnectionGuide) {
+        let window: NSPanel
+        if let panel { window = panel } else {
+            window = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 460, height: 570), styleMask: [.titled, .closable, .resizable, .utilityWindow], backing: .buffered, defer: false)
+            window.isReleasedWhenClosed = false
+            window.level = .floating
+            window.hidesOnDeactivate = false
+            window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+            window.minSize = NSSize(width: 360, height: 400)
+            window.center()
+            panel = window
+        }
+        window.title = "Set up \(guide.rawValue)"
+        window.contentView = NSHostingView(rootView: ConnectionGuideView(guide: guide, close: { [weak window] in window?.close() }))
+        window.makeKeyAndOrderFront(nil)
+    }
+}
+
+private struct ConnectionGuideView: View {
+    let guide: ConnectionGuide
+    let close: () -> Void
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Set up \(guide.rawValue)").font(.title2.bold())
+                    Text("Keep this guide beside you as you set up.").font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button(action: close) { Image(systemName: "xmark") }.accessibilityLabel("Close setup guide")
+            }.padding(20)
+            Divider()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    ForEach(Array(guide.steps.enumerated()), id: \.offset) { index, text in
+                        HStack(alignment: .top, spacing: 12) {
+                            Text("\(index + 1)").font(.headline.monospacedDigit()).foregroundStyle(.orange)
+                            Text(text).fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    Text(guide.note).font(.callout).foregroundStyle(.secondary)
+                    Link("Official setup instructions ↗", destination: guide.helpURL)
+                    if guide == .calendar || guide == .asana {
+                        Link("Choose Google calendars to sync ↗", destination: URL(string: "https://www.google.com/calendar/syncselect")!)
+                    }
+                }.padding(20)
+            }
+            Divider()
+            HStack {
+                Button(guide == .gmail ? "Open Apple Mail" : guide == .asana ? "Open Asana" : "Open Apple Calendar") {
+                    if guide == .asana {
+                        NSWorkspace.shared.open(URL(string: "https://app.asana.com/")!)
+                        return
+                    }
+                    let identifier = guide == .gmail ? "com.apple.mail" : "com.apple.iCal"
+                    if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: identifier) {
+                        NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+                    }
+                }
+                Spacer()
+                Button("Done", action: close).keyboardShortcut(.cancelAction)
+            }.padding(16)
+        }.frame(minWidth: 320, minHeight: 360)
     }
 }

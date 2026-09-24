@@ -347,7 +347,7 @@ struct CalendarSettingsView: View {
                             DisclosureGroup("Asana calendar subscription") {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Asana tasks").font(.headline)
-                Text("In Asana, open My Tasks → its menu → Sync to Calendar. Copy the subscription link, then in Apple Calendar choose File → New Calendar Subscription and paste it. Choose that calendar below.")
+                Text("In Asana, click the small down arrow beside My tasks → Sync/Export → Google Calendar (recommended). Follow the steps to add it to your work Google Calendar. Make sure that task calendar also appears in Apple Calendar on this Mac, then reload and choose it below.")
                     .font(.caption).foregroundStyle(.secondary)
                 Picker("Asana calendar", selection: $asanaCalendar) {
                     Text("Not connected").tag("")
