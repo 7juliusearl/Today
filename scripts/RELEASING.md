@@ -16,6 +16,22 @@ xcrun swiftc -parse-as-library -module-cache-path build/swift-module-cache proto
 
 Create `latest.json` in your release folder, obtain its view-only shared file link, and put that URL in `release.json` as `feedURL`. Preserve this file and its sharing link across releases. The updater automatically converts Dropbox preview links to downloads. The link must be downloadable without a Dropbox sign-in or password. A shared folder URL is only for humans browsing releases.
 
+## Developer ID signing and notarization
+
+Install a Developer ID Application certificate with its private key on the publishing Mac. Save `.today-signing.json` (ignored by Git) with `identity` set to its certificate fingerprint and `notaryProfile` set to `today-notary`. This file contains configuration only; private keys stay in Keychain. `TODAY_SIGNING_IDENTITY` and `TODAY_NOTARY_PROFILE` can override these settings.
+
+Create an app-specific password in your Apple Account, then run this in your own Terminal and answer its prompts locally:
+
+```sh
+xcrun notarytool store-credentials today-notary
+```
+
+Supply your developer Apple Account, its team ID, and the app-specific password. Never put the password in Git or chat. Credentials are validated and stored in Keychain.
+
+The build signs the updater helper and app with hardened runtime and secure timestamps. The app retains its Apple Events entitlement for Mail automation. The packager requires notarization credentials before building, signs the final portable bundle, submits it to Apple, staples and validates the accepted ticket, checks Gatekeeper, then creates the release ZIP. It stops on errors; it never silently falls back to an ad hoc release. The existing Dropbox feed-signing key is separate and unchanged.
+
+Local builds without configured signing still allow explicit development use. On the publishing Mac, use the saved identity consistently. Moving existing users from ad hoc signing may require one final Keychain/privacy approval. Signing does not suppress locked-Keychain or user-denied-access prompts.
+
 ## Automated shipping (recommended)
 
 One-time Dropbox authorization:

@@ -18,3 +18,6 @@ build/
 
 # Private update-publishing key. Back up separately; never distribute or commit.
 .today-release-signing/
+
+# Local signing identity and Keychain profile names (no private keys).
+.today-signing.json

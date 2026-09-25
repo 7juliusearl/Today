@@ -1,6 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+python3 "$REPO_DIR/scripts/sign-today.py" preflight
 TODAY_ARCHS="arm64 x86_64" "$REPO_DIR/scripts/build-calendar-prototype.sh"
 TODAY_EXPORT=$(mktemp -d "$REPO_DIR/build/Today-Share-XXXXXX")
 TODAY_FOLDER="$TODAY_EXPORT/Today"
@@ -37,7 +38,7 @@ cp "$REPO_DIR/prototype/calendar/portable/AGENTS.md" "$TODAY_FOLDER/CLAUDE.md"
 cp "$REPO_DIR/prototype/calendar/portable/UPDATES.md" "$TODAY_FOLDER/UPDATES.md"
 cp "$REPO_DIR/prototype/calendar/portable/Update Existing Today.command" "$TODAY_FOLDER/Update Existing Today.command"
 chmod +x "$TODAY_FOLDER/Update Existing Today.command"
-codesign --force --deep --sign "${TODAY_SIGNING_IDENTITY:--}" "$TODAY_FOLDER/Today.app"
-codesign --verify --deep --strict "$TODAY_FOLDER/Today.app"
+python3 "$REPO_DIR/scripts/sign-today.py" release-sign "$TODAY_FOLDER/Today.app"
+python3 "$REPO_DIR/scripts/sign-today.py" notarize "$TODAY_FOLDER/Today.app"
 ditto -c -k --keepParent "$TODAY_FOLDER" "$TODAY_EXPORT/Today.zip"
 printf 'Share this archive: %s\nProject folder: %s\n' "$TODAY_EXPORT/Today.zip" "$TODAY_FOLDER"

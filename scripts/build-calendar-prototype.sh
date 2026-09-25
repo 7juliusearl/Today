@@ -127,10 +127,5 @@ path.write_bytes(plistlib.dumps(info))
 PYCONFIG
 mkdir -p "$APP_DIR/Contents/Resources/custom"
 touch "$APP_DIR/Contents/Resources/custom/user.css" "$APP_DIR/Contents/Resources/custom/user.js"
-codesign --force --sign "${TODAY_SIGNING_IDENTITY:--}" "$APP_DIR/Contents/MacOS/TodayUpdateHelper"
-codesign --force --deep --sign "${TODAY_SIGNING_IDENTITY:--}" "$APP_DIR"
-codesign --verify --deep --strict "$APP_DIR"
-if [ "${TODAY_SIGNING_IDENTITY:--}" = "-" ]; then
-  echo "Development signing: macOS permissions may need re-adding after this rebuild. Set TODAY_SIGNING_IDENTITY to a stable signing certificate to preserve identity."
-fi
+python3 "$REPO_DIR/scripts/sign-today.py" sign "$APP_DIR"
 printf 'Built: %s\n' "$APP_DIR"
