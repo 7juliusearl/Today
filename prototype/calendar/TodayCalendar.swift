@@ -12,7 +12,7 @@ import ServiceManagement
     let mail = MailModel()
     let asanaBriefs = AsanaBriefs()
     let companion = CompanionServer()
-    private var pendingInvitations: [String: EKEvent] = [:]
+    private var displayedEvents: [String: EKEvent] = [:]
     private var calendarActions: [String: String] = [:]
     private var automaticRefresh: AutoRefreshController?
     @Published var calendars: [EKCalendar] = []
@@ -53,8 +53,8 @@ import ServiceManagement
         }
     }
 
-    func respondInCalendar(id: String) {
-        guard let event = pendingInvitations[id], calendarActions[id] != "Opening Calendar…" else { return }
+    func respondInCalendar(id: String, invitation: Bool = true) {
+        guard let event = displayedEvents[id], calendarActions[id] != "Opening Calendar…" else { return }
         struct Target: Encodable { let uid: String; let calendar: String; let start: String }
         let target = Target(uid: event.calendarItemExternalIdentifier ?? "", calendar: event.calendar.title,
                             start: ISO8601DateFormatter().string(from: event.startDate))
@@ -66,10 +66,10 @@ import ServiceManagement
                 let data = try await runLocalAutomation(resource: "open-calendar", arguments: [input])
                 struct Result: Decodable { let found: Bool }
                 let result = try JSONDecoder().decode(Result.self, from: data)
-                calendarActions[id] = result.found ? "Use Accept, Maybe, or Decline in Calendar."
-                    : "Calendar is open on the event’s date. Use its Invitations inbox to respond."
+                calendarActions[id] = result.found ? (invitation ? "Use Accept, Maybe, or Decline in Calendar." : "Event opened in Calendar.")
+                    : "Calendar is open on the event’s date. Select the event to see its details."
             } catch {
-                calendarActions[id] = "Could not reveal the event. Allow Today under Privacy & Security → Automation → Calendar, or open Calendar’s Invitations inbox."
+                calendarActions[id] = "Could not reveal the event. Allow Today under Privacy & Security → Automation → Calendar, or open the event in Calendar."
                 if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.iCal") {
                     _ = try? await NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
                 }
@@ -152,11 +152,10 @@ import ServiceManagement
             tasks: (directTasks ?? calendarAsana.tasks).map { task in
                 var task = task; task.brief = asanaBriefs.brief(for: task.url); return task
             })
-        pendingInvitations = [:]
-        let pendingIDs = Set(calendar.pendingInvites.map(\.id))
+        displayedEvents = [:]
         for event in events {
             let id = (event.eventIdentifier ?? event.calendarItemIdentifier) + "@" + ISO8601DateFormatter().string(from: event.startDate)
-            if pendingIDs.contains(id) { pendingInvitations[id] = event }
+            displayedEvents[id] = event
         }
         struct Dashboard: Encodable {
             let generatedAt: String
@@ -205,6 +204,7 @@ struct DashboardWebView: NSViewRepresentable {
         configuration.userContentController.add(context.coordinator, name: "mailOpen")
         configuration.userContentController.add(context.coordinator, name: "mailOpenApp")
         configuration.userContentController.add(context.coordinator, name: "respondInCalendar")
+        configuration.userContentController.add(context.coordinator, name: "openCalendarEvent")
         configuration.userContentController.addScriptMessageHandler(context.coordinator, contentWorld: .page, name: "asanaComments")
         let view = WKWebView(frame: .zero, configuration: configuration)
         view.navigationDelegate = context.coordinator
@@ -292,6 +292,8 @@ struct DashboardWebView: NSViewRepresentable {
                 NotificationCenter.default.post(name: Notification.Name("TodayOpenSettings"), object: nil)
             } else if message.name == "respondInCalendar", let id = message.body as? String {
                 model.respondInCalendar(id: id)
+            } else if message.name == "openCalendarEvent", let id = message.body as? String {
+                model.respondInCalendar(id: id, invitation: false)
             } else if message.name == "mailOpenApp" {
                 model.mail.openMailApp()
             } else if message.name == "mailOpen", let id = message.body as? String {

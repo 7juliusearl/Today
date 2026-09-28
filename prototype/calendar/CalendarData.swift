@@ -58,8 +58,8 @@ func mappedEvent(_ event: EKEvent, primary: String?) -> CalendarEvent {
         id: (event.eventIdentifier ?? event.calendarItemIdentifier) + "@" + iso.string(from: event.startDate),
         title: event.title ?? "Untitled event", start: iso.string(from: event.startDate), end: iso.string(from: event.endDate),
         allDay: event.isAllDay, location: event.location, calendar: event.calendar.calendarIdentifier == primary ? "personal" : "team",
-        description: String(notes.prefix(600)), meetingLink: meeting?.absoluteString,
-        organizer: event.organizer.map(person), attendees: Array(participants.prefix(15)).map(person), attendeeCount: participants.count,
+        description: notes, meetingLink: meeting?.absoluteString,
+        organizer: event.organizer.map(person), attendees: participants.map(person), attendeeCount: participants.count,
         myResponseStatus: event.organizer?.isCurrentUser == true ? "organizer" : response(me),
         // occurrenceDate can also be populated for one-off events; it is not a recurrence flag.
         status: event.status == .canceled ? "cancelled" : "confirmed", recurring: event.hasRecurrenceRules || event.isDetached,

@@ -18,7 +18,8 @@ import EventKit
         let allDay = event("All day", day(1), day(2), allDay: true)
         let ended = event("Already ended", day(-1), today)
         let meeting = event("Meeting", today.addingTimeInterval(12*3600), today.addingTimeInterval(13*3600))
-        meeting.notes = "Join https://meet.google.com/abc-defg-hij"
+        meeting.notes = "Join https://meet.google.com/abc-defg-hij\n" + String(repeating: "Full meeting notes. ", count: 100) + "End of notes"
+        assert(mappedEvent(meeting, primary: nil).description == meeting.notes, "Keep complete notes beyond 600 characters")
         meeting.url = URL(string: "javascript:alert(1)")
         assert(!mappedEvent(meeting, primary: nil).recurring, "A one-off event must not be labeled recurring")
         let weekly = event("Weekly meeting", today, today.addingTimeInterval(3600))

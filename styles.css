@@ -1882,3 +1882,15 @@ body.focus-timer-only .page.page .bento-focus { min-height: 80vh; }
 :root[data-design="terminal"] .verse-text { font-family: var(--mono); font-size: 19px; }
 .preview-terminal { border-radius: 2px; background: #050b08; }
 .preview-terminal i { background: repeating-linear-gradient(0deg,#09140e 0 5px,#183d28 5px 6px); border: 1px solid #48f08b70; border-top: 3px solid #48f08b; border-radius: 0; }
+
+/* Keep full guest lists and long calendar notes readable in narrow sections. */
+.attendee-person { min-width: 0; overflow-wrap: anywhere; }
+.attendee-email, .attendee-response { display: block; font-size: 11px; color: var(--ink-soft); }
+.attendee-overflow { margin-top: 8px; }
+summary.attendee-more { cursor: pointer; color: var(--ink); padding: 6px 0; }
+.attendee-collapse, .attendee-overflow[open] .attendee-expand { display: none; }
+.attendee-overflow[open] .attendee-collapse { display: inline; }
+.event-description, .event-detail-value { overflow-wrap: anywhere; }
+.event-description a { color: inherit; text-decoration: underline; }
+.calendar-open-button { border: 0; background: none; padding: 0; cursor: pointer; text-align: left; }
+.event-attachment-hint { font-size: 11px; line-height: 1.5; color: var(--ink-soft); margin: 10px 0 0; }

@@ -162,24 +162,40 @@ function attendeeDotClass(status) {
 
 function renderAttendees(ev) {
   const attendees = ev.attendees || [];
-  if (attendees.length === 0) return "";
-
-  const shown = attendees.slice(0, 6);
-  const extra = (ev.attendeeCount || attendees.length) - shown.length;
-
-  const items = shown.map((a) => `
-    <li class="attendee">
-      <span class="attendee-dot ${attendeeDotClass(a.responseStatus)}"></span>
-      <span>${escapeHtml(a.name || a.email || "")}</span>
-    </li>`).join("");
-
-  return `
-    <div class="event-detail-block">
-      <p class="event-detail-label">Attendees${ev.attendeeCount ? ` (${ev.attendeeCount})` : ""}</p>
-      <ul class="attendee-list">${items}</ul>
-      ${extra > 0 ? `<p class="attendee-more">+${extra} more</p>` : ""}
-    </div>`;
+  if (!attendees.length) return "";
+  const render = people => people.map(a => `<li class="attendee">
+    <span class="attendee-dot ${attendeeDotClass(a.responseStatus)}" aria-hidden="true"></span>
+    <span class="attendee-person">${escapeHtml(a.name || a.email || "Guest")}
+      ${a.email && a.name && a.name !== a.email ? `<span class="attendee-email">${escapeHtml(a.email)}</span>` : ""}
+      ${RESPONSE_LABELS[a.responseStatus] ? `<span class="attendee-response">${RESPONSE_LABELS[a.responseStatus]}</span>` : ""}
+    </span></li>`).join("");
+  const remaining = attendees.slice(6);
+  return `<div class="event-detail-block">
+    <p class="event-detail-label">Attendees (${ev.attendeeCount || attendees.length})</p>
+    <ul class="attendee-list">${render(attendees.slice(0, 6))}</ul>
+    ${remaining.length ? `<details class="attendee-overflow" data-event-key="${escapeHtml(`${ev.id || ev.title}|${ev.start}|guests`)}"><summary class="attendee-more"><span class="attendee-expand">+${remaining.length} more</span><span class="attendee-collapse">Show fewer guests</span></summary><ul class="attendee-list">${render(remaining)}</ul></details>` : ""}
+    ${ev.attendeeCount > attendees.length ? '<p class="attendee-more">More guests are available in Calendar.</p>' : ""}
+  </div>`;
 }
+
+function calendarWebURL(value) {
+  try { const url = new URL(value); return ["https:", "http:"].includes(url.protocol) ? url.href : null; }
+  catch { return null; }
+}
+
+function renderCalendarNotes(text) {
+  // Escape every segment, including link labels; event notes are untrusted text.
+  return String(text).split(/(https?:\/\/[^\s<>]+)/gi).map(part => {
+    const match = part.match(/^(https?:\/\/.*?)([.,;!?)]*)$/i);
+    const url = match && calendarWebURL(match[1]);
+    return url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(match[1])}</a>${escapeHtml(match[2])}` : escapeHtml(part);
+  }).join("").replace(/\n/g, "<br>");
+}
+
+document.addEventListener("click", event => {
+  const button = event.target.closest?.("[data-open-calendar-event]");
+  if (button) window.webkit?.messageHandlers?.openCalendarEvent?.postMessage(button.dataset.openCalendarEvent);
+});
 
 function eventTags(ev) {
   const tags = [];
@@ -192,7 +208,7 @@ function eventTags(ev) {
 
 function hasExpandableDetails(ev) {
   return Boolean(
-    ev.description || ev.meetingLink || ev.organizer ||
+    window.webkit?.messageHandlers?.openCalendarEvent || ev.description || ev.meetingLink || ev.organizer ||
     (ev.attendees && ev.attendees.length > 0) || ev.htmlLink
   );
 }
@@ -201,11 +217,11 @@ function renderEventDetailsBody(ev) {
   const parts = [];
 
   if (ev.description) {
-    parts.push(`<div class="event-detail-block"><p class="event-description">${escapeHtml(ev.description).replace(/\n/g, "<br>")}</p></div>`);
+    parts.push(`<div class="event-detail-block"><p class="event-detail-label">Notes</p><p class="event-description">${renderCalendarNotes(ev.description)}</p></div>`);
   }
 
   if (ev.organizer) {
-    parts.push(`<div class="event-detail-block"><p class="event-detail-label">Organizer</p><p class="event-detail-value">${escapeHtml(ev.organizer.name || ev.organizer.email)}</p></div>`);
+    parts.push(`<div class="event-detail-block"><p class="event-detail-label">Organizer</p><p class="event-detail-value">${escapeHtml([ev.organizer.name, ev.organizer.email].filter((value, i, all) => value && all.indexOf(value) === i).join(" · "))}</p></div>`);
   }
 
   if (ev.myResponseStatus && RESPONSE_LABELS[ev.myResponseStatus]) {
@@ -215,9 +231,16 @@ function renderEventDetailsBody(ev) {
   parts.push(renderAttendees(ev));
 
   const links = [];
-  if (ev.meetingLink) links.push(`<a class="event-link" href="${escapeHtml(ev.meetingLink)}" target="_blank" rel="noopener">Join meeting ↗</a>`);
-  if (ev.htmlLink) links.push(`<a class="event-link event-link-subtle" href="${escapeHtml(normalizeCalendarLink(ev.htmlLink))}" target="_blank" rel="noopener">Open in Calendar ↗</a>`);
+  const meetingURL = calendarWebURL(ev.meetingLink);
+  const eventURL = calendarWebURL(normalizeCalendarLink(ev.htmlLink || ""));
+  if (meetingURL) links.push(`<a class="event-link" href="${escapeHtml(meetingURL)}" target="_blank" rel="noopener">Join meeting ↗</a>`);
+  if (eventURL && eventURL !== meetingURL) links.push(`<a class="event-link" href="${escapeHtml(eventURL)}" target="_blank" rel="noopener">Event link ↗</a>`);
+  if (window.webkit?.messageHandlers?.openCalendarEvent && ev.id) {
+    links.push(`<button type="button" class="event-link calendar-open-button" data-open-calendar-event="${escapeHtml(ev.id)}">Open in Calendar ↗</button>`);
+  }
   if (links.length) parts.push(`<div class="event-links">${links.join("")}</div>`);
+  parts.push('<p class="event-attachment-hint">For attached files, open the original event in Calendar. File links included in notes are shown above.</p>');
+  if (DATA.calendarActions?.[ev.id]) parts.push(`<p class="event-attachment-hint" role="status">${escapeHtml(DATA.calendarActions[ev.id])}</p>`);
 
   return parts.join("");
 }
@@ -1116,7 +1139,7 @@ function normalizeCalendarLink(url) {
 function escapeHtml(str) {
   const div = document.createElement("div");
   div.textContent = str;
-  return div.innerHTML;
+  return div.innerHTML.replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
 async function loadWeather(lat, lon) {
