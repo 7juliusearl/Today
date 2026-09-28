@@ -79,6 +79,17 @@ import ServiceManagement
     }
 
     func connect() {
+        guard !requesting else { return }
+        loadCalendars()
+        if calendarAuthorization == .fullAccess {
+            reloadCalendars()
+            return
+        }
+        if calendarAuthorization == .denied || calendarAuthorization == .restricted {
+            message = calendarMessage
+            return
+        }
+        calendarMessage = "Waiting for macOS calendar permission…"
         requesting = true
         store.requestFullAccessToEvents { granted, error in
             Task { @MainActor in
@@ -87,6 +98,11 @@ import ServiceManagement
                 if granted { self.store.reset(); self.loadCalendars(); self.refresh() }
                 else {
                     self.loadCalendars()
+                    if let error {
+                        self.calendarMessage = "Could not connect calendars: \(error.localizedDescription)"
+                    } else if self.calendarAuthorization != .denied && self.calendarAuthorization != .restricted {
+                        self.calendarMessage = "Calendar access was not granted. Open Calendar privacy settings to allow Today, then reload calendars."
+                    }
                     self.message = self.calendarMessage
                 }
             }
@@ -366,7 +382,7 @@ struct CalendarSettingsView: View {
                             if !model.calendarMessage.isEmpty {
                                 Text(model.calendarMessage).font(.callout).foregroundStyle(.secondary)
                             }
-                            HStack {
+                            VStack(alignment: .leading, spacing: 10) {
                                 if model.calendarAuthorization != .fullAccess {
                                     Button(model.requesting ? "Connecting…" : "Connect calendars") { model.connect() }.disabled(model.requesting)
                                     Button("Calendar privacy settings") {
