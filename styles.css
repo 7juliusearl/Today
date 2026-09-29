@@ -1915,3 +1915,12 @@ dialog[data-movable] { resize: both; min-width: min(320px, calc(100vw - 32px)); 
 .dialog-focus-clock { flex-basis: 100%; order: 2; font: 600 14px/1.4 var(--mono); color: var(--ink); font-variant-numeric: tabular-nums; }
 .dialog-focus-clock[hidden] { display: none; }
 dialog[data-movable]::backdrop { background: transparent; }
+
+/* With no live event, promote only the nearest upcoming event. */
+.has-countdown .now-event-soon.now-event-featured .now-countdown { flex-basis: 40%; gap: 8px; }
+.has-countdown .now-event-soon.now-event-featured .now-countdown-number { font-size: clamp(90px, 14vw, 160px); }
+.has-countdown .now-event-soon.now-event-featured h3 { font-size: clamp(22px, 2.5vw, 28px); }
+@media (max-width: 520px) {
+  .has-countdown .now-event-soon.now-event-featured .now-countdown { flex-basis: 110px; }
+  .has-countdown .now-event-soon.now-event-featured .now-countdown-number { font-size: 80px; }
+}

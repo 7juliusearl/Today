@@ -195,3 +195,23 @@
 /* Upcoming events stay secondary, including in the compact focus layout. */
 body.focus-mode .page .happening-now .now-event-soon .now-countdown { flex-basis: 64px; margin-top: 0; }
 body.focus-mode .page .happening-now .now-event-soon .now-countdown-number { font-size: 30px; }
+
+@media (min-width: 1000px) and (min-height: 650px) {
+  .page .has-countdown .now-event-soon.now-event-featured .now-countdown { flex-basis: 40%; margin-top: 0; }
+  .page .has-countdown .now-event-soon.now-event-featured .now-countdown-number { font-size: clamp(90px, 12vw, 150px); }
+  .page .has-countdown .now-event-soon.now-event-featured h3 { font-size: 22px; }
+}
+body.focus-mode .page .happening-now .now-event-soon.now-event-featured .now-countdown { flex-basis: 90px; }
+body.focus-mode .page .happening-now .now-event-soon.now-event-featured .now-countdown-number { font-size: 64px; }
+
+/* Let event content set the shared Welcome/Now row height. Scroll the page
+   when needed rather than hiding countdowns inside a fixed-height card. */
+@media (min-width: 1000px) and (min-height: 650px) {
+  body:not(.focus-mode) { height: auto; overflow-y: auto; }
+  body:not(.focus-mode) .page { height: auto; min-height: 100vh; grid-template-rows: minmax(190px, max-content) minmax(260px, 1fr) 190px 48px; }
+  body:not(.focus-mode) .page:has(.has-countdown) { grid-template-rows: minmax(230px, max-content) minmax(260px, 1fr) 190px 48px; }
+  body.dashboard-filtered:not(.focus-mode) .page { grid-template-rows: var(--dashboard-template-rows); }
+  body .page .glass-card.happening-now { min-height: max-content; overflow: visible; }
+  body:not(.focus-mode) .page .glass-card.hero { min-height: max-content; align-self: stretch; }
+}
+body .page .happening-now .now-event .now-countdown { margin-top: 0; }

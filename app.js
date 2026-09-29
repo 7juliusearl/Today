@@ -127,7 +127,7 @@ function renderHappeningNow(now = new Date()) {
           join = `<a class="now-join" href="${escapeHtml(url.href)}" target="_blank" rel="noopener">Join meeting ↗</a>`;
         }
       } catch {}
-      return `<div class="now-event${countdown ? " now-event-soon" : " now-event-current"}">
+      return `<div class="now-event${countdown ? " now-event-soon" : " now-event-current"}${!active.length && ev === soon[0] ? " now-event-featured" : ""}">
         <div class="now-event-top"><div class="now-event-info">
           <p class="now-live"><span aria-hidden="true">${countdown ? "◷" : "●"}</span> ${countdown ? "Up next" : "In progress"}</p>
           <h3>${escapeHtml(ev.title)}</h3>
@@ -545,8 +545,8 @@ function arrangeDashboardSections(cards) {
     ids.forEach((id, i) => place(visible.get(id), i * width + 1, width, rows.length));
   }
   const countdown = visible.get("now")?.classList.contains("has-countdown");
-  row(headers, lists.length || supporting.length ? (countdown ? "clamp(230px, 30vh, 310px)" : "clamp(175px, 23vh, 235px)") : "minmax(0, 1fr)");
-  row(lists, "minmax(0, 1fr)");
+  row(headers, countdown ? "minmax(230px, max-content)" : "minmax(175px, max-content)");
+  row(lists, "minmax(260px, 1fr)");
   row(supporting, lists.length ? "clamp(155px, 22vh, 205px)" : "minmax(0, 1fr)");
   if (mail) {
     if (!rows.length) rows.push("minmax(0, 1fr)");
