@@ -28,9 +28,9 @@
   .page:has(.has-countdown) .hero { grid-column: 1 / 6; }
   .page .happening-now.has-countdown { grid-column: 6 / 13; padding: 22px; }
   .page .has-countdown .panel-head { padding-right: 0; margin-bottom: 12px; }
-  .page .has-countdown .now-event-soon .now-countdown { flex-basis: 40%; margin-top: -36px; gap: 6px; }
-  .page .has-countdown .now-event-soon .now-countdown-number { font-size: clamp(120px, 12vw, 190px); }
-  .page .has-countdown .now-event-soon h3 { font-size: clamp(18px, 1.8vw, 26px); }
+  .page .has-countdown .now-event-soon .now-countdown { flex-basis: 76px; margin-top: 0; gap: 3px; }
+  .page .has-countdown .now-event-soon .now-countdown-number { font-size: 30px; }
+  .page .has-countdown .now-event-soon h3 { font-size: 15px; }
   .page .has-countdown .now-countdown-label, .page .has-countdown .now-countdown-unit { font-size: 11px; }
   .happening-now .panel-head { padding-right: 100px; margin-bottom: 10px; }
   .now-event-top { gap: 8px; }
@@ -191,3 +191,7 @@
   .page .quicklinks .quicklink-label { white-space: nowrap; }
   body.focus-filtered .page .quicklinks .quicklinks-grid { display: grid; overflow: visible; }
 }
+
+/* Upcoming events stay secondary, including in the compact focus layout. */
+body.focus-mode .page .happening-now .now-event-soon .now-countdown { flex-basis: 64px; margin-top: 0; }
+body.focus-mode .page .happening-now .now-event-soon .now-countdown-number { font-size: 30px; }

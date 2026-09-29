@@ -1433,7 +1433,7 @@ a.asana-task:hover { color: var(--accent); }
 .schedule-asana .asana-task:last-child { border-bottom: 0; padding-bottom: 0; }
 .schedule-event:has(+ .schedule-asana) { border-bottom: 0; }
 
-/* Give approaching meetings the visual priority while their countdown is live. */
+/* In-progress meetings take priority over the smaller upcoming countdown. */
 .happening-now.has-countdown {
   padding: 32px 38px;
   border-color: color-mix(in srgb, var(--accent) 38%, var(--line));
@@ -1441,14 +1441,18 @@ a.asana-task:hover { color: var(--accent); }
 }
 .has-countdown .panel-head { padding-right: 0; margin-bottom: 22px; }
 .has-countdown .now-event-top { gap: 32px; }
-.has-countdown .now-event-soon .now-countdown { flex-basis: 40%; margin-top: 0; gap: 12px; }
-.has-countdown .now-event-soon .now-countdown-number { font-size: clamp(150px, 22vw, 240px); }
-.has-countdown .now-event-soon h3 { font-size: clamp(24px, 3vw, 32px); }
-.has-countdown .now-countdown-label, .has-countdown .now-countdown-unit { font-size: 13px; }
+.has-countdown .now-event-current .now-countdown { flex-basis: 40%; margin-top: 0; gap: 8px; }
+.has-countdown .now-event-current .now-countdown-number { font-size: clamp(90px, 14vw, 160px); }
+.has-countdown .now-event-current h3 { font-size: clamp(22px, 2.5vw, 28px); }
+.has-countdown .now-event-soon .now-countdown { flex-basis: 76px; margin-top: 0; gap: 4px; }
+.has-countdown .now-event-soon .now-countdown-number { font-size: 30px; }
+.has-countdown .now-event-soon h3 { font-size: 17px; }
 @media (max-width: 520px) {
   .happening-now.has-countdown { padding: 24px; }
-  .has-countdown .now-event-soon .now-event-top { flex-direction: column-reverse; align-items: stretch; gap: 24px; }
-  .has-countdown .now-event-soon .now-countdown { flex-basis: auto; }
+  .has-countdown .now-event-top { gap: 16px; }
+  .has-countdown .now-event-current .now-countdown { flex-basis: 110px; }
+  .has-countdown .now-event-current .now-countdown-number { font-size: 80px; }
+  .has-countdown .now-event-soon .now-countdown { flex-basis: 76px; }
 }
 
 /* Focus timer: duration entry stays compact; a live session takes priority. */

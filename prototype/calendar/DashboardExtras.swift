@@ -36,7 +36,18 @@ import CoreLocation
         [.denied, .restricted].contains(location.authorizationStatus)
     }
     func requestLocationAccess() {
+        guard !weatherBusy else { return }
+        if locationAuthorized { retryWeather(); return }
+        if locationDenied {
+            weather.message = "Allow Today in System Settings → Privacy & Security → Location Services."
+            onChange?()
+            return
+        }
+        weather.message = "Waiting for macOS location permission…"
         location.requestWhenInUseAuthorization()
+        // Starting a location service also triggers the native macOS consent flow.
+        startLocation()
+        onChange?()
     }
 
     var weatherBusy: Bool { locating || fetchingWeather }
@@ -82,13 +93,14 @@ import CoreLocation
     private func startLocation() {
         guard !locating else { return }
         locating = true
+        if locationAuthorized { weather.message = "Finding your approximate location…" }
         location.startUpdatingLocation()
         Task {
             try? await Task.sleep(nanoseconds: 15_000_000_000)
             if locating {
                 location.stopUpdatingLocation()
                 locating = false
-                weather.message = "Location unavailable"
+                weather.message = locationAuthorized ? "Location unavailable. Check Wi-Fi and try Refresh weather." : "No location access yet. Open Location Settings and enable Location Services for Today."
                 onChange?()
             }
         }
@@ -112,7 +124,7 @@ import CoreLocation
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         manager.stopUpdatingLocation()
         locating = false
-        weather.message = "Location unavailable"
+        weather.message = locationAuthorized ? "Location unavailable. Check Wi-Fi and try Refresh weather." : "No location access yet. Open Location Settings and enable Location Services for Today."
         onChange?()
     }
 
@@ -125,7 +137,7 @@ import CoreLocation
         let lat = (point.coordinate.latitude * 100).rounded() / 100
         let lon = (point.coordinate.longitude * 100).rounded() / 100
         Task {
-            defer { fetchingWeather = false }
+            defer { fetchingWeather = false; onChange?() }
             do {
                 struct Forecast: Decodable {
                     struct Current: Decodable { let temperature_2m: Double; let weather_code: Int }

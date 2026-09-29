@@ -524,10 +524,10 @@ struct CalendarSettingsView: View {
                     .font(.caption).foregroundStyle(.secondary)
                 HStack {
                     if !model.extras.locationAuthorized && !model.extras.locationDenied {
-                        Button("Enable location") {
+                        Button(model.extras.weatherBusy ? "Connecting…" : "Enable location") {
                             UserDefaults.standard.set(false, forKey: "introWeatherSkipped")
                             model.extras.requestLocationAccess()
-                        }
+                        }.disabled(model.extras.weatherBusy)
                     }
                     Button("Open Location Settings") {
                         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices") {
@@ -542,7 +542,7 @@ struct CalendarSettingsView: View {
                 if model.extras.locationDenied {
                     Text("Enable Location Services and allow Today in macOS Settings, then return here.")
                         .font(.caption).foregroundStyle(.secondary)
-                } else if model.extras.locationAuthorized {
+                } else {
                     Text(model.extras.weather.message.isEmpty ? "Local forecast is up to date." : model.extras.weather.message)
                         .font(.caption).foregroundStyle(.secondary)
                 }

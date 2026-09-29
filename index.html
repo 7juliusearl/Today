@@ -60,11 +60,6 @@
           </div>
         </div>
       </div>
-      <div class="hero-rhythm" id="hero-rhythm" hidden>
-        <p class="eyebrow" id="hero-rhythm-eyebrow">Today&rsquo;s Rhythm</p>
-        <div class="hero-rhythm-list" id="hero-rhythm-list"></div>
-        <button class="hero-week-link" id="hero-week-link" type="button" aria-haspopup="dialog" aria-controls="rhythm-week-dialog">See full week ↗</button>
-      </div>
     </div>
   </header>
 
@@ -243,16 +238,8 @@
   <div class="rhythm-week-body"><p class="focus-settings-help">Choose what stays visible while your timer runs or is paused. The timer always stays visible. Your full dashboard returns when the session ends.</p><label class="focus-mail-option"><input type="checkbox" id="focus-tall-mail" checked> Tall Mail column</label><p class="focus-settings-help">On wide screens, keep Mail full height beside the timer and other selected sections.</p><div id="focus-section-options"></div><p class="focus-settings-help">Saved on this device. Sections without data may stay hidden.</p></div>
   <div class="focus-settings-footer"><button type="button" id="focus-show-all">Show all</button><button type="button" id="focus-settings-done">Done</button></div>
 </dialog>
-<dialog class="rhythm-week-dialog" id="rhythm-week-dialog" aria-labelledby="rhythm-week-title">
-  <div class="rhythm-week-header">
-    <div><p class="eyebrow">Your weekly rhythm</p><h2 id="rhythm-week-title">The full week</h2></div>
-    <button class="rhythm-week-close" id="rhythm-week-close" type="button" aria-label="Close full week" autofocus>×</button>
-  </div>
-  <div class="rhythm-week-body" id="rhythm-week-body" tabindex="0" role="region" aria-label="Full weekly schedule"><div id="workschedule-full-body"></div></div>
-</dialog>
 
 <script src="data/dashboard.js?v=5"></script>
-<script src="data/schedule.js?v=1"></script>
 <script src="data/plan.js?v=1"></script>
 <script src="app.js?v=26"></script>
 </body>

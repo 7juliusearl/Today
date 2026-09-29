@@ -106,7 +106,7 @@ function renderHappeningNow(now = new Date()) {
   const events = [...(calendar.events || []), ...(calendar.upcoming || []).flatMap(day => day.events || [])];
   const unique = Array.from(new Map(events.map(ev => [`${ev.id || ev.title}|${ev.start}`, ev])).values());
   const { active, soon, next } = happeningNowState(unique, now);
-  container.closest(".happening-now")?.classList.toggle("has-countdown", soon.length > 0);
+  container.closest(".happening-now")?.classList.toggle("has-countdown", active.length > 0 || soon.length > 0);
   document.getElementById("happening-now-title").textContent = !active.length && soon.length ? "Happening soon" : "Happening now";
   let markup;
   if (!active.length && !soon.length) {
@@ -127,7 +127,7 @@ function renderHappeningNow(now = new Date()) {
           join = `<a class="now-join" href="${escapeHtml(url.href)}" target="_blank" rel="noopener">Join meeting ↗</a>`;
         }
       } catch {}
-      return `<div class="now-event${countdown ? " now-event-soon" : ""}">
+      return `<div class="now-event${countdown ? " now-event-soon" : " now-event-current"}">
         <div class="now-event-top"><div class="now-event-info">
           <p class="now-live"><span aria-hidden="true">${countdown ? "◷" : "●"}</span> ${countdown ? "Up next" : "In progress"}</p>
           <h3>${escapeHtml(ev.title)}</h3>
@@ -446,104 +446,8 @@ function renderPendingInvites() {
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-function renderWorkScheduleItem(item) {
-  return `
-    <div class="wsched-item">
-      <div class="wsched-time">${escapeHtml(item.time)}</div>
-      <div class="wsched-main">
-        <p class="wsched-title">${escapeHtml(item.title)}</p>
-        ${item.note ? `<p class="wsched-note">${escapeHtml(item.note)}</p>` : ""}
-      </div>
-    </div>`;
-}
-
 function isCoworkerDashboard() {
   return document.documentElement.dataset.edition === "coworker";
-}
-
-function todaysWorkSchedule() {
-  if (isCoworkerDashboard()) return { schedule: null, todayName: null, today: null };
-  const schedule = window.WORK_SCHEDULE;
-  if (!schedule || !schedule.week) return { schedule: null, todayName: null, today: null };
-
-  const todayName = DAY_NAMES[new Date().getDay()];
-  const today = schedule.week.find((d) => d.day === todayName);
-  return { schedule, todayName, today };
-}
-
-function renderWorkSchedule() {
-  const fullBody = document.getElementById("workschedule-full-body");
-  const { schedule } = todaysWorkSchedule();
-  if (!fullBody) return;
-  if (!schedule) {
-    fullBody.innerHTML = '<p class="empty-state">No work schedule set up yet.</p>';
-    return;
-  }
-
-  fullBody.innerHTML = schedule.week.map((d) => `
-    <div class="wsched-day">
-      <p class="wsched-day-name">${escapeHtml(d.day)}</p>
-      <div class="wsched-day-items">
-        ${d.items.length > 0
-          ? d.items.map(renderWorkScheduleItem).join("")
-          : `<p class="empty-state">${escapeHtml(d.note || "")}</p>`}
-      </div>
-    </div>
-  `).join("");
-
-  if (schedule.officeHours || schedule.editingRhythm) {
-    const notes = [schedule.officeHours, schedule.editingRhythm].filter(Boolean);
-    fullBody.innerHTML += `
-      <div class="workschedule-notes">
-        ${notes.map((n) => `<p>${escapeHtml(n)}</p>`).join("")}
-      </div>`;
-  }
-}
-
-function renderHeroRhythm() {
-  const widget = document.getElementById("hero-rhythm");
-  const list = document.getElementById("hero-rhythm-list");
-  const { schedule, todayName, today } = todaysWorkSchedule();
-
-  if (!schedule) {
-    widget.hidden = true;
-    return;
-  }
-
-  document.getElementById("hero-rhythm-eyebrow").textContent = `${todayName}’s Rhythm`;
-
-  if (today?.items?.length > 0) {
-    list.innerHTML = today.items.slice(0, 3).map((item) => `
-      <div class="hero-rhythm-item">
-        <span class="hero-rhythm-time">${escapeHtml(item.time)}</span>
-        <span class="hero-rhythm-title">${escapeHtml(item.title)}</span>
-      </div>`).join("");
-  } else if (today?.short || today?.note) {
-    list.innerHTML = `<div class="hero-rhythm-item hero-rhythm-item-solo">
-      <span class="hero-rhythm-title">${escapeHtml(today.short || today.note)}</span>
-    </div>`;
-  } else {
-    list.innerHTML = '<span class="hero-rhythm-title">No regular plans today.</span>';
-  }
-
-  widget.hidden = false;
-}
-
-function initRhythmWeekDialog() {
-  const dialog = document.getElementById("rhythm-week-dialog");
-  const link = document.getElementById("hero-week-link");
-  if (!dialog || !link) return;
-  link.addEventListener("click", () => {
-    renderWorkSchedule();
-    const body = document.getElementById("rhythm-week-body");
-    if (!dialog.open) dialog.showModal();
-    body.scrollTop = 0;
-  });
-  document.getElementById("rhythm-week-close").addEventListener("click", () => dialog.close());
-  dialog.addEventListener("click", event => {
-    const bounds = dialog.getBoundingClientRect();
-    if (event.target === dialog && (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom)) dialog.close();
-  });
 }
 
 function focusRemaining(state, now = Date.now()) {
@@ -655,7 +559,7 @@ function arrangeDashboardSections(cards) {
 
 function initDashboardSections() {
   const sections = [
-    ["welcome", "Welcome, weather & rhythm", ".hero"], ["now", "Happening now", ".happening-now"],
+    ["welcome", "Welcome & weather", ".hero"], ["now", "Happening now", ".happening-now"],
     ["schedule", "Today’s schedule", ".bento-schedule"], ["mail", "Mail", ".bento-mail"],
     ["upcoming", "Coming up", ".bento-comingup"], ["invites", "Pending invitations", ".bento-invites"],
     ["timer", "Focus timer", ".bento-focus"], ["plan", "Learn & Observe / personal plan", ".bento-plan"],
@@ -716,7 +620,7 @@ function initDashboardSections() {
 
 function initFocusSections() {
   const sections = [
-    ["welcome", "Welcome, weather & rhythm", ".hero"],
+    ["welcome", "Welcome & weather", ".hero"],
     ["now", "Happening now", ".happening-now"],
     ["schedule", "Today’s schedule", ".bento-schedule"],
     ["mail", "Mail", ".bento-mail"],
@@ -1595,8 +1499,6 @@ window.refreshLocalDashboard = function () {
   renderSchedule();
   renderUpcoming();
   renderPendingInvites();
-  renderWorkSchedule();
-  renderHeroRhythm();
   renderOnboardingPlan();
   renderMail();
   renderStickyNotes();
@@ -1612,7 +1514,6 @@ initQuickLinks();
 initNativeControls();
 initThemeToggle();
 initDesignThemes();
-initRhythmWeekDialog();
 initDashboardSections();
 initFocusTimer();
 initRefreshButton();
@@ -1621,8 +1522,6 @@ renderGreetingAndClock();
 renderSchedule();
 renderUpcoming();
 renderPendingInvites();
-renderWorkSchedule();
-renderHeroRhythm();
 renderOnboardingPlan();
 renderSlack();
 renderMail();
@@ -1792,6 +1691,7 @@ function addAsanaComments(content, task, dialog, close) {
   const toolbar = document.createElement('div'); toolbar.className = 'asana-comments-toolbar'; toolbar.append(heading, refresh);
   area.append(toolbar, label, status, list, more, form); content.append(area);
   let busy = false, posting = false, next = '', count = 0;
+  let revision = 0, polling = false, stopped = false, retryAt = 0, failures = 0;
   const drafts = {}, ids = new Set(), offsets = new Set(), people = new Map();
   let selected = select.value;
   const mentionDrafts = {};
@@ -1826,6 +1726,7 @@ function addAsanaComments(content, task, dialog, close) {
   }
   async function load(reset) {
     if (busy) return;
+    revision++;
     controls(true); status.textContent = 'Loading comments…';
     if (reset) { next = ''; count = 0; ids.clear(); offsets.clear(); list.replaceChildren(); more.hidden = true; }
     try {
@@ -1852,6 +1753,7 @@ function addAsanaComments(content, task, dialog, close) {
   form.addEventListener('submit', async event => {
     event.preventDefault();
     if (busy || !input.value.trim()) return;
+    revision++;
     controls(true, true); status.textContent = 'Posting comment…';
     try {
       const result = await bridge.postMessage({action: 'post', taskURL: task.url, parent: select.value === 'parent', text: input.value, mentions: mentionPicker.snapshot()});
@@ -1860,6 +1762,50 @@ function addAsanaComments(content, task, dialog, close) {
     } catch (error) { status.textContent = String(error.message || error); }
     finally { controls(false); }
   });
+  async function refreshAutomatically() {
+    if (stopped || !dialog.open || !dialog.isConnected || document.hidden || busy || polling || Date.now() < retryAt) return;
+    polling = true;
+    const generation = revision, parent = select.value === 'parent';
+    const current = () => !stopped && dialog.open && dialog.isConnected && revision === generation;
+    try {
+      // Stories arrive oldest first. Follow every page to reach new comments.
+      const comments = [], cursors = new Set();
+      let offset = '';
+      do {
+        const result = await bridge.postMessage({action: 'load', taskURL: task.url, parent, ...(offset ? {offset} : {})});
+        if (!current()) return;
+        comments.push(...(result.comments || []));
+        offset = result.next || '';
+        if (offset && (cursors.has(offset) || cursors.size >= 50)) throw Error('Comment refresh could not finish. Use Refresh to try again.');
+        if (offset) cursors.add(offset);
+      } while (offset);
+      const top = content.scrollTop;
+      // Leave the composer, selected mentions and focus untouched.
+      const oldMarkup = list.innerHTML;
+      ids.clear(); count = 0; list.replaceChildren(); append(comments);
+      const changed = oldMarkup !== list.innerHTML;
+      next = ''; offsets.clear(); more.hidden = true;
+      content.scrollTop = top;
+      status.textContent = changed ? 'Comments updated automatically.' : count ? 'Comments up to date.' : 'No comments yet. Start the conversation.';
+      failures = 0; retryAt = 0;
+    } catch (error) {
+      if (current()) {
+        failures++;
+        retryAt = Date.now() + Math.min(300000, 30000 * 2 ** Math.min(failures - 1, 4));
+        status.textContent = 'Automatic refresh paused: ' + String(error.message || error) + ' Your draft is kept.';
+      }
+    } finally { polling = false; }
+  }
+  const pollTimer = window.setInterval(refreshAutomatically, 30000);
+  const resume = () => { if (!document.hidden) refreshAutomatically(); };
+  window.addEventListener('focus', resume);
+  document.addEventListener('visibilitychange', resume);
+  dialog.addEventListener('close', () => {
+    stopped = true; revision++;
+    window.clearInterval(pollTimer);
+    window.removeEventListener('focus', resume);
+    document.removeEventListener('visibilitychange', resume);
+  }, {once: true});
   // A post must finish before a click outside the brief can close it.
   dialog.addEventListener('click', event => { if (posting && event.target === dialog) event.stopImmediatePropagation(); }, true);
   targetLabel(); load(true);
