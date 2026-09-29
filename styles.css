@@ -1894,3 +1894,20 @@ summary.attendee-more { cursor: pointer; color: var(--ink); padding: 6px 0; }
 .event-description a { color: inherit; text-decoration: underline; }
 .calendar-open-button { border: 0; background: none; padding: 0; cursor: pointer; text-align: left; }
 .event-attachment-hint { font-size: 11px; line-height: 1.5; color: var(--ink-soft); margin: 10px 0 0; }
+
+/* Draggable title bars leave text fields and scrolling content untouched. */
+.dialog-drag-handle { cursor: grab; touch-action: none; user-select: none; }
+.dialog-drag-handle.is-dragging { cursor: grabbing; }
+.dialog-drag-handle:focus-visible { outline: 2px solid var(--accent); outline-offset: -4px; }
+dialog[data-movable]::backdrop { background: rgb(0 0 0 / .18); backdrop-filter: none; -webkit-backdrop-filter: none; }
+
+/* Compact windows can sit below the countdown instead of covering the screen. */
+dialog[data-movable] { resize: both; min-width: min(320px, calc(100vw - 32px)); min-height: min(240px, calc(100vh - 32px)); max-width: calc(100vw - 32px); max-height: calc(100vh - 32px); }
+.asana-brief-dialog[open] { display: flex; flex-direction: column; width: min(580px, calc(100vw - 32px)); height: min(520px, calc(100vh - 32px)); }
+.asana-brief-dialog header, .focus-settings-footer { flex-shrink: 0; }
+.asana-brief-dialog .asana-brief-content { flex: 1; min-height: 0; max-height: none; overflow-y: auto; }
+.dialog-drag-handle { flex-wrap: wrap; }
+.dialog-drag-handle > :first-child { flex: 1; min-width: 0; }
+.dialog-focus-clock { flex-basis: 100%; order: 2; font: 600 14px/1.4 var(--mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+.dialog-focus-clock[hidden] { display: none; }
+dialog[data-movable]::backdrop { background: transparent; }

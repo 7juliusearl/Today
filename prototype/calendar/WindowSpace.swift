@@ -161,7 +161,7 @@ enum DashboardSpace {
 
 struct WindowControlSetupView: View {
     @ObservedObject var space: WindowSpaceController
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.closeFloatingDialog) private var dismiss
     @State private var requested = false
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {

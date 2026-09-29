@@ -1630,8 +1630,92 @@ renderVerse();
 renderStickyNotes();
 initWeather();
 
+// Shared by every dashboard dialog, including dynamically created task briefs.
+function makeDialogMovable(dialog) {
+  const handle = dialog.querySelector(':scope > header, :scope > .rhythm-week-header');
+  if (!handle || dialog.dataset.movable) return;
+  dialog.dataset.movable = 'true';
+  handle.classList.add('dialog-drag-handle');
+  handle.tabIndex = 0;
+  handle.setAttribute('aria-label', 'Move dialog. Drag here or use arrow keys.');
+  handle.title = 'Drag to move · Arrow keys when focused';
+  const timer = document.createElement('span');
+  timer.className = 'dialog-focus-clock';
+  timer.setAttribute('role', 'timer');
+  timer.hidden = true;
+  handle.insertBefore(timer, handle.querySelector(':scope > button'));
+  const syncTimer = () => {
+    const session = document.getElementById('focus-session');
+    timer.hidden = !session || session.hidden;
+    const title = document.getElementById('focus-title')?.textContent || 'Focus';
+    const digits = document.getElementById('focus-digits')?.textContent || '';
+    timer.textContent = `${title} · ${digits}`;
+    timer.setAttribute('aria-label', `${title}, ${digits} remaining`);
+  };
+  const timerObserver = new MutationObserver(syncTimer);
+  const observeTimer = () => {
+    syncTimer();
+    for (const id of ['focus-title', 'focus-session']) {
+      const el = document.getElementById(id);
+      if (el) timerObserver.observe(el, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['hidden'] });
+    }
+  };
+  let drag = null;
+  let positioned = false;
+  const place = (x, y) => {
+    const box = dialog.getBoundingClientRect();
+    const maxX = Math.max(0, innerWidth - box.width);
+    const maxY = Math.max(0, innerHeight - box.height);
+    Object.assign(dialog.style, { position: 'fixed', margin: '0', right: 'auto', bottom: 'auto',
+      left: `${Math.max(0, Math.min(maxX, x))}px`, top: `${Math.max(0, Math.min(maxY, y))}px` });
+    positioned = true;
+  };
+  const finish = () => { drag = null; handle.classList.remove('is-dragging'); };
+  handle.addEventListener('pointerdown', event => {
+    if (event.button !== 0 || event.target.closest('button, a, input, select, textarea')) return;
+    const box = dialog.getBoundingClientRect();
+    drag = { id: event.pointerId, x: event.clientX, y: event.clientY, left: box.left, top: box.top };
+    handle.setPointerCapture(event.pointerId);
+    handle.classList.add('is-dragging');
+    event.preventDefault();
+  });
+  handle.addEventListener('pointermove', event => {
+    if (drag && event.pointerId === drag.id) place(drag.left + event.clientX - drag.x, drag.top + event.clientY - drag.y);
+  });
+  handle.addEventListener('pointerup', finish);
+  handle.addEventListener('pointercancel', finish);
+  handle.addEventListener('lostpointercapture', finish);
+  handle.addEventListener('keydown', event => {
+    if (event.target !== handle || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
+    event.preventDefault();
+    const box = dialog.getBoundingClientRect(), step = event.shiftKey ? 40 : 10;
+    place(box.left + (event.key === 'ArrowRight' ? step : event.key === 'ArrowLeft' ? -step : 0),
+      box.top + (event.key === 'ArrowDown' ? step : event.key === 'ArrowUp' ? -step : 0));
+  });
+  const clamp = () => {
+    if (dialog.open && positioned) { const box = dialog.getBoundingClientRect(); place(box.left, box.top); }
+  };
+  const observer = new ResizeObserver(clamp);
+  const watch = new MutationObserver(() => {
+    if (dialog.open) {
+      observeTimer();
+      if (!positioned && document.body.classList.contains('focus-mode')) {
+        const box = dialog.getBoundingClientRect();
+        place(innerWidth - box.width - 16, innerHeight - box.height - 16);
+      }
+      observer.observe(dialog); window.addEventListener('resize', clamp); clamp();
+    }
+    else { timerObserver.disconnect(); observer.disconnect(); window.removeEventListener('resize', clamp); finish(); }
+  });
+  watch.observe(dialog, { attributes: true, attributeFilter: ['open'] });
+  if (dialog.open) { observer.observe(dialog); window.addEventListener('resize', clamp); }
+}
+
+document.querySelectorAll('dialog').forEach(makeDialogMovable);
+
 function showAsanaBrief(task) {
-  document.getElementById('asana-brief-dialog')?.remove();
+  const previous = document.getElementById('asana-brief-dialog');
+  if (previous) { previous.close(); previous.remove(); }
   const dialog = document.createElement('dialog');
   dialog.id = 'asana-brief-dialog'; dialog.className = 'asana-brief-dialog';
   dialog.setAttribute('aria-labelledby', 'asana-brief-title');
@@ -1673,6 +1757,7 @@ function showAsanaBrief(task) {
   }
   if (window.webkit?.messageHandlers?.asanaComments) addAsanaComments(content, task, dialog, close);
   dialog.append(head, content); document.body.append(dialog);
+  makeDialogMovable(dialog);
   dialog.addEventListener('close', () => dialog.remove());
   dialog.addEventListener('click', event => {
     const box = dialog.getBoundingClientRect();

@@ -1,0 +1,53 @@
+(async () => {
+ const assert = (condition, message) => { if (!condition) throw new Error(message); };
+ const move = (handle, key, shiftKey = false) => handle.dispatchEvent(new KeyboardEvent('keydown', {key,shiftKey,bubbles:true,cancelable:true}));
+ for (const dialog of document.querySelectorAll('dialog')) {
+   assert(dialog.dataset.movable === 'true', dialog.id+' is movable');
+   dialog.showModal();
+   const handle = dialog.querySelector('.dialog-drag-handle');
+   const before = dialog.getBoundingClientRect(); move(handle,'ArrowLeft');
+   const after = dialog.getBoundingClientRect();
+   assert(Math.abs(after.left - Math.max(0,before.left-10)) < 1, dialog.id+' moves');
+   for(let i=0;i<50;i++) move(handle,'ArrowLeft',true);
+   assert(dialog.getBoundingClientRect().left >= 0,'Left edge remains visible');
+   for(let i=0;i<50;i++) move(handle,'ArrowDown',true);
+   assert(dialog.getBoundingClientRect().bottom <= innerHeight+1,'Bottom edge remains visible');
+   const close=handle.querySelector('button'); const x=dialog.getBoundingClientRect().left;
+   move(close,'ArrowRight'); assert(dialog.getBoundingClientRect().left===x,'Buttons do not drag');
+   close.click(); assert(!dialog.open,'Close button works');
+ }
+ showAsanaBrief({title:'Movable task brief',brief:{description:'Task details remain readable. '.repeat(300)}});
+ const dialog=document.getElementById('asana-brief-dialog'), handle=dialog.querySelector('header');
+ assert(dialog.dataset.movable==='true','Dynamic Asana dialog is movable');
+ await new Promise(resolve => setTimeout(resolve, 30));
+ assert(dialog.getBoundingClientRect().height <= 522, 'Long brief stays compact');
+ const content=dialog.querySelector('.asana-brief-content');
+ assert(content.scrollHeight > content.clientHeight, 'Long brief scrolls internally');
+ assert(getComputedStyle(dialog).resize === 'both', 'Dialog is resizable');
+ const session=document.getElementById('focus-session'); session.hidden=false;
+ document.getElementById('focus-title').textContent='Focus paused';
+ document.getElementById('focus-digits').textContent='0:38:05';
+ await new Promise(resolve => setTimeout(resolve, 30));
+ assert(!dialog.querySelector('.dialog-focus-clock').hidden && dialog.querySelector('.dialog-focus-clock').textContent.includes('0:38:05'), 'Countdown stays visible in header');
+ document.getElementById('focus-digits').textContent='0:38:04';
+ await new Promise(resolve => setTimeout(resolve, 30));
+ assert(dialog.querySelector('.dialog-focus-clock').textContent.includes('0:38:04'), 'Countdown stays synchronized');
+ dialog.style.width='400px'; dialog.style.height='300px';
+ await new Promise(resolve => setTimeout(resolve, 30));
+ assert(dialog.getBoundingClientRect().height <= 306, 'Resizing shrinks the brief');
+ const before=dialog.getBoundingClientRect();
+ // Synthetic pointer events do not own a hardware pointer; stub capture only.
+ handle.setPointerCapture = () => {};
+ handle.dispatchEvent(new PointerEvent('pointerdown',{pointerId:1,button:0,clientX:before.left+30,clientY:before.top+20,bubbles:true}));
+ handle.dispatchEvent(new PointerEvent('pointermove',{pointerId:1,clientX:before.left+60,clientY:before.top+30,bubbles:true}));
+ handle.dispatchEvent(new PointerEvent('pointerup',{pointerId:1,bubbles:true}));
+ assert(Math.abs(dialog.getBoundingClientRect().left-before.left-30)<1,'Pointer drag moves Asana');
+ const ended=dialog.getBoundingClientRect().left;
+ handle.dispatchEvent(new PointerEvent('pointermove',{pointerId:1,clientX:before.left+90,clientY:before.top+30,bubbles:true}));
+ assert(dialog.getBoundingClientRect().left===ended,'Pointer release stops movement');
+ move(handle,'ArrowRight');
+ assert(dialog.getBoundingClientRect().left>before.left,'Asana moves');
+ assert(getComputedStyle(dialog,'::backdrop').backdropFilter==='none','Timer is not blurred');
+ dialog.close();
+ return 'Passed movable dialogs: all dashboard dialogs, dynamic Asana, keyboard movement, bounds, close controls, clear backdrop.';
+})()

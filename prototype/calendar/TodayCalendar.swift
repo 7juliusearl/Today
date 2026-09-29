@@ -312,10 +312,76 @@ struct DashboardWebView: NSViewRepresentable {
     }
 }
 
+private struct FloatingDialogCloseKey: EnvironmentKey {
+    static let defaultValue: () -> Void = {}
+}
+extension EnvironmentValues {
+    var closeFloatingDialog: () -> Void {
+        get { self[FloatingDialogCloseKey.self] }
+        set { self[FloatingDialogCloseKey.self] = newValue }
+    }
+}
+
+private struct FloatingDialogPresenter<Content: View>: NSViewRepresentable {
+    @Binding var presented: Bool
+    let title: String
+    let content: Content
+    func makeNSView(context: Context) -> NSView { NSView() }
+    func makeCoordinator() -> Coordinator { Coordinator() }
+    func updateNSView(_ view: NSView, context: Context) {
+        let coordinator = context.coordinator
+        coordinator.binding = $presented
+        guard presented else { coordinator.close(); return }
+        if let host = coordinator.panel?.contentView as? NSHostingView<AnyView> {
+            host.rootView = AnyView(content.environment(\.closeFloatingDialog, { presented = false }))
+            return
+        }
+        let host = NSHostingView(rootView: AnyView(content.environment(\.closeFloatingDialog, { presented = false })))
+        let size = host.fittingSize
+        let panel = NSPanel(contentRect: NSRect(origin: .zero, size: size),
+                            styleMask: [.titled, .closable, .utilityWindow], backing: .buffered, defer: false)
+        panel.title = title
+        panel.isReleasedWhenClosed = false
+        panel.hidesOnDeactivate = false
+        panel.contentView = host
+        panel.delegate = coordinator
+        coordinator.panel = panel
+        panel.center()
+        view.window?.addChildWindow(panel, ordered: .above)
+        panel.makeKeyAndOrderFront(nil)
+    }
+    static func dismantleNSView(_ view: NSView, coordinator: Coordinator) { coordinator.close() }
+    final class Coordinator: NSObject, NSWindowDelegate {
+        var panel: NSPanel?
+        var binding: Binding<Bool>?
+        func close() {
+            guard let panel else { return }
+            panel.delegate = nil
+            panel.parent?.removeChildWindow(panel)
+            panel.close()
+            self.panel = nil
+        }
+        func windowWillClose(_ notification: Notification) {
+            panel?.parent?.removeChildWindow(panel!)
+            panel = nil
+            let binding = binding
+            DispatchQueue.main.async { binding?.wrappedValue = false }
+        }
+    }
+}
+
+private extension View {
+    func floatingDialog<Content: View>(_ title: String, isPresented: Binding<Bool>,
+                                      onDismiss: @escaping () -> Void = {}, @ViewBuilder content: () -> Content) -> some View {
+        background(FloatingDialogPresenter(presented: isPresented, title: title, content: content()))
+            .onChange(of: isPresented.wrappedValue) { old, new in if old && !new { onDismiss() } }
+    }
+}
+
 struct CalendarSettingsView: View {
     @ObservedObject var model: CalendarModel
     @ObservedObject var login: LoginSettings
-    @Environment(\.dismiss) var dismiss
+    @Environment(\.closeFloatingDialog) var dismiss
     @State private var selected: Set<String> = []
     @State private var name = ""
     @State private var primary = ""
@@ -615,7 +681,7 @@ struct PrototypeView: View {
             default: break
             }
         }
-        .sheet(isPresented: $windowOptionsPresented, onDismiss: {
+        .floatingDialog("Window options", isPresented: $windowOptionsPresented, onDismiss: {
             if setupAfterOptions { setupAfterOptions = false; windowControlPresented = true }
         }) {
             VStack(alignment: .leading, spacing: 16) {
@@ -650,8 +716,8 @@ struct PrototypeView: View {
             }.padding(24).frame(width: 420)
         }
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("TodayOpenSettings"))) { _ in model.loadCalendars(); settingsPresented = true }
-        .sheet(isPresented: $settingsPresented) { CalendarSettingsView(model: model, login: model.login) }
-        .sheet(isPresented: $windowControlPresented) { WindowControlSetupView(space: space) }
+        .floatingDialog("Settings", isPresented: $settingsPresented) { CalendarSettingsView(model: model, login: model.login) }
+        .floatingDialog("Window control", isPresented: $windowControlPresented) { WindowControlSetupView(space: space) }
         .onAppear {
             updater.checkAutomatically()
             if TodayPaths.portable && TodayPaths.project == nil { TodayPaths.chooseProject() }
