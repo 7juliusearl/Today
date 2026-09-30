@@ -1,4 +1,5 @@
 import AppKit
+import Darwin
 import SwiftUI
 
 // HTTPS only, including redirects. The release signature is checked independently of the host.
@@ -103,6 +104,13 @@ final class UpdateNetwork: NSObject, URLSessionTaskDelegate, @unchecked Sendable
             try process.run()
             handedOff = true
             status = "Restarting Today…"
+            // AppKit termination can be deferred indefinitely by window or application
+            // lifecycle state. The installer cannot replace the running app until this
+            // process exits, so guarantee the user-requested restart after allowing a
+            // brief grace period for normal application termination.
+            DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 2) {
+                Darwin._exit(EXIT_SUCCESS)
+            }
             NSApp.terminate(nil)
         } catch { status = error.localizedDescription }
     }
