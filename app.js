@@ -1533,6 +1533,7 @@ initWeather();
 function makeDialogMovable(dialog) {
   const handle = dialog.querySelector(':scope > header, :scope > .rhythm-week-header');
   if (!handle || dialog.dataset.movable) return;
+  const frameKey = dialog.id ? `today:dialog-frame:${dialog.id}` : '';
   dialog.dataset.movable = 'true';
   handle.classList.add('dialog-drag-handle');
   handle.tabIndex = 0;
@@ -1561,15 +1562,40 @@ function makeDialogMovable(dialog) {
   };
   let drag = null;
   let positioned = false;
-  const place = (x, y) => {
+  const savedFrame = () => {
+    if (!frameKey) return null;
+    try {
+      const frame = JSON.parse(localStorage.getItem(frameKey) || 'null');
+      return frame && ['left', 'top', 'width', 'height'].every(key => Number.isFinite(frame[key])) ? frame : null;
+    } catch { return null; }
+  };
+  const saveFrame = () => {
+    if (!frameKey || !dialog.open) return;
+    const box = dialog.getBoundingClientRect();
+    try { localStorage.setItem(frameKey, JSON.stringify({ left: box.left, top: box.top, width: box.width, height: box.height })); }
+    catch { /* The dialog remains usable when browser storage is unavailable. */ }
+  };
+  const place = (x, y, remember = true) => {
     const box = dialog.getBoundingClientRect();
     const maxX = Math.max(0, innerWidth - box.width);
     const maxY = Math.max(0, innerHeight - box.height);
     Object.assign(dialog.style, { position: 'fixed', margin: '0', right: 'auto', bottom: 'auto',
       left: `${Math.max(0, Math.min(maxX, x))}px`, top: `${Math.max(0, Math.min(maxY, y))}px` });
     positioned = true;
+    if (remember) saveFrame();
   };
-  const finish = () => { drag = null; handle.classList.remove('is-dragging'); };
+  const restoreFrame = () => {
+    const frame = savedFrame();
+    if (frame) {
+      dialog.style.width = `${frame.width}px`;
+      dialog.style.height = `${frame.height}px`;
+    }
+    const box = dialog.getBoundingClientRect();
+    if (frame) place(frame.left, frame.top, false);
+    else if (document.body.classList.contains('focus-mode')) place(innerWidth - box.width - 16, innerHeight - box.height - 16, false);
+    else place(box.left, box.top, false);
+  };
+  const finish = () => { drag = null; handle.classList.remove('is-dragging'); saveFrame(); };
   handle.addEventListener('pointerdown', event => {
     if (event.button !== 0 || event.target.closest('button, a, input, select, textarea')) return;
     const box = dialog.getBoundingClientRect();
@@ -1598,16 +1624,13 @@ function makeDialogMovable(dialog) {
   const watch = new MutationObserver(() => {
     if (dialog.open) {
       observeTimer();
-      if (!positioned && document.body.classList.contains('focus-mode')) {
-        const box = dialog.getBoundingClientRect();
-        place(innerWidth - box.width - 16, innerHeight - box.height - 16);
-      }
-      observer.observe(dialog); window.addEventListener('resize', clamp); clamp();
+      if (!positioned) restoreFrame();
+      observer.observe(dialog); window.addEventListener('resize', clamp); clamp(); saveFrame();
     }
     else { timerObserver.disconnect(); observer.disconnect(); window.removeEventListener('resize', clamp); finish(); }
   });
   watch.observe(dialog, { attributes: true, attributeFilter: ['open'] });
-  if (dialog.open) { observer.observe(dialog); window.addEventListener('resize', clamp); }
+  if (dialog.open) { restoreFrame(); observer.observe(dialog); window.addEventListener('resize', clamp); saveFrame(); }
 }
 
 document.querySelectorAll('dialog').forEach(makeDialogMovable);

@@ -1,6 +1,8 @@
 (async () => {
  const assert = (condition, message) => { if (!condition) throw new Error(message); };
  const move = (handle, key, shiftKey = false) => handle.dispatchEvent(new KeyboardEvent('keydown', {key,shiftKey,bubbles:true,cancelable:true}));
+ for (const dialog of document.querySelectorAll('dialog')) localStorage.removeItem('today:dialog-frame:'+dialog.id);
+ localStorage.removeItem('today:dialog-frame:asana-brief-dialog');
  for (const dialog of document.querySelectorAll('dialog')) {
    assert(dialog.dataset.movable === 'true', dialog.id+' is movable');
    dialog.showModal();
@@ -48,6 +50,13 @@
  move(handle,'ArrowRight');
  assert(dialog.getBoundingClientRect().left>before.left,'Asana moves');
  assert(getComputedStyle(dialog,'::backdrop').backdropFilter==='none','Timer is not blurred');
+ const remembered=dialog.getBoundingClientRect();
  dialog.close();
- return 'Passed movable dialogs: all dashboard dialogs, dynamic Asana, keyboard movement, bounds, close controls, clear backdrop.';
+ showAsanaBrief({title:'Remembered task brief',brief:{description:'Remembered geometry.'}});
+ await new Promise(resolve => setTimeout(resolve, 30));
+ const reopened=document.getElementById('asana-brief-dialog'), restored=reopened.getBoundingClientRect();
+ assert(Math.abs(restored.left-remembered.left)<1 && Math.abs(restored.top-remembered.top)<1,'Task brief remembers location');
+ assert(Math.abs(restored.width-remembered.width)<1 && Math.abs(restored.height-remembered.height)<1,'Task brief remembers size');
+ reopened.close();
+ return 'Passed movable dialogs: all dashboard dialogs, dynamic Asana, keyboard movement, bounds, saved size and location, close controls, clear backdrop.';
 })()
