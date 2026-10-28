@@ -151,7 +151,7 @@ import ServiceManagement
         let asana = AsanaPayload(connected: directTasks != nil || calendarAsana.connected, calendarName: directTasks != nil ? "Asana · My tasks" : calendarAsana.calendarName,
             tasks: (directTasks ?? calendarAsana.tasks).map { task in
                 var task = task; task.brief = asanaBriefs.brief(for: task.url); return task
-            })
+            }, status: asanaBriefs.status, unreadCommentTasks: asanaBriefs.unreadCommentTasks, completionEnabled: AsanaAuth.completionEnabled)
         displayedEvents = [:]
         for event in events {
             let id = (event.eventIdentifier ?? event.calendarItemIdentifier) + "@" + ISO8601DateFormatter().string(from: event.startDate)
@@ -263,13 +263,20 @@ struct DashboardWebView: NSViewRepresentable {
                   message.frameInfo.request.url?.isFileURL == true,
                   let body = message.body as? [String: Any], let url = body["taskURL"] as? String,
                   let parent = body["parent"] as? Bool, let action = body["action"] as? String,
-                  ["load", "post", "people"].contains(action), action != "post" || body["text"] is String else {
+                  ["load", "post", "people", "complete", "read"].contains(action), action != "post" || body["text"] is String else {
                 replyHandler(nil, "Invalid comment request."); return
             }
             Task { @MainActor in
                 do {
                     let result: [String: Any]
-                    if action == "people" { result = try await model.asanaBriefs.users(taskURL: url) }
+                    if action == "read" {
+                        result = try model.asanaBriefs.markCommentsViewed(taskURL: url, parent: parent, latest: body["latest"] as? String ?? "")
+                    }
+                    else if action == "complete" {
+                        guard !parent else { throw AsanaAuth.AuthError("Only assigned subtasks can be completed.") }
+                        result = try await model.asanaBriefs.completeSubtask(taskURL: url)
+                    }
+                    else if action == "people" { result = try await model.asanaBriefs.users(taskURL: url) }
                     else {
                         result = try await model.asanaBriefs.comments(taskURL: url, parent: parent,
                             text: action == "post" ? body["text"] as? String : nil, offset: body["offset"] as? String,

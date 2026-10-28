@@ -291,13 +291,72 @@ function updateScheduleTime(now = new Date()) {
   if (window.scrollY !== pageY) window.scrollTo({ top: pageY, behavior: "instant" });
 }
 
+function asanaCommentTaskID(url) {
+  try { const parts = new URL(url).pathname.split('/').filter(Boolean); const i = parts.indexOf('task');
+    return i >= 0 ? parts[i + 1] : parts[0] === '0' ? parts[2] : null;
+  } catch { return null; }
+}
+
+function asanaTasksThisWeek(tasks, now = new Date()) {
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  monday.setDate(monday.getDate() - (monday.getDay() + 6) % 7);
+  const next = new Date(monday); next.setDate(next.getDate() + 7);
+  const key = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  const start = key(monday), end = key(next);
+  return tasks.filter(task => task.dueDate && task.dueDate >= start && task.dueDate < end);
+}
+
+function groupAsanaTasks(tasks) {
+  const taskID = value => {
+    try {
+      const parts = new URL(value).pathname.split('/').filter(Boolean);
+      const index = parts.indexOf('task');
+      return index >= 0 ? parts[index + 1] : parts[0] === '0' ? parts[2] : null;
+    } catch { return null; }
+  };
+  const groups = new Map();
+  for (const task of tasks) {
+    const brief = task.brief;
+    const parentID = task.parent?.gid || taskID(brief?.parentURL);
+    // Calendar entries have no hierarchy until their details have loaded.
+    // Never substitute a subtask title while waiting for its parent.
+    if (!parentID && !brief) continue;
+    if (!parentID && brief?.message) continue;
+    const id = parentID || taskID(task.url) || task.id;
+    const title = parentID ? task.parent?.name || brief?.parentTitle : brief.title || task.title;
+    if (!title) continue;
+    const url = parentID ? brief?.parentURL || `https://app.asana.com/0/0/${parentID}` : task.url;
+    const parentBrief = parentID ? (brief?.parentTitle ? {
+      title, description: brief.parentDescription || '', url, message: brief.message
+    } : null) : brief;
+    if (!groups.has(id)) groups.set(id, {id, title, url, tasks: [], briefTask: null});
+    const group = groups.get(id);
+    group.tasks.push(task);
+    group.subtasks = group.tasks.filter(item => (taskID(item.url) || item.id) !== id);
+    if (parentBrief) group.briefTask = {id: 'asana:' + id, title, url, brief: parentBrief};
+  }
+  const due = group => group.tasks.map(task => task.dueDate || '9999-99-99').sort()[0];
+  return [...groups.values()].sort((a,b) => due(a).localeCompare(due(b)) || a.title.localeCompare(b.title));
+}
+
+function asanaDueUrgency(dueDate, now = new Date()) {
+  const due = new Date(dueDate + 'T12:00:00');
+  const days = Math.round((Date.UTC(due.getFullYear(), due.getMonth(), due.getDate()) -
+    Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000);
+  return days <= 0 ? 'urgent' : days <= 2 ? 'soon' : 'later';
+}
+
+function asanaSubtaskBrief(task) {
+  return {...task, isSubtask: true, brief: {title: task.title, description: task.brief?.description ?? task.description ?? '',
+    url: task.url, message: task.brief?.message}};
+}
+
 function renderSchedule() {
   const list = document.getElementById("schedule-list");
   const events = (DATA.calendar && DATA.calendar.events) || [];
 
-  const date = new Date();
-  const today = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-  const tasks = (DATA.asana?.tasks || []).filter(task => task.dueDate === today);
+  const tasks = asanaTasksThisWeek(DATA.asana?.tasks || []);
+  const expandedAsana = new Set([...list.querySelectorAll(".asana-subtasks[open]")].map(el => el.dataset.group));
   if (events.length === 0 && tasks.length === 0) {
     list.innerHTML = `<p class="empty-state">Nothing on your calendar today. Enjoy the open space.</p>`;
     return;
@@ -313,41 +372,109 @@ function renderSchedule() {
   if (tasks.length) {
     const section = document.createElement("section");
     section.className = "schedule-asana";
-    section.setAttribute("aria-label", "Asana tasks due today");
+    section.setAttribute("aria-label", "Asana tasks due this week");
     const heading = document.createElement("p");
     heading.className = "upcoming-day-date";
-    heading.textContent = "Asana · Due today";
+    heading.textContent = "Asana · This week";
     section.append(heading);
-    for (const task of tasks) {
-      const url = asanaDesktopLink(task.url);
-      const row = document.createElement("div");
-      row.className = "asana-task";
-      const title = document.createElement(url ? "a" : "p");
-      title.className = "asana-task-title";
-      title.textContent = task.title + (url ? " ↗" : "");
-      if (url) { title.href = url; title.target = "_blank"; title.rel = "noopener"; }
+    const groups = groupAsanaTasks(tasks);
+    if (!groups.length) {
+      const status = document.createElement('p'); status.className = 'empty-state';
+      status.textContent = DATA.asana?.status || 'Loading parent tasks…';
+      section.append(status);
+    }
+    for (const group of groups) {
+      const row = document.createElement('div'); row.className = 'asana-task';
+      const url = asanaDesktopLink(group.url);
+      const title = document.createElement(url ? 'a' : 'p');
+      title.className = 'asana-task-title'; title.textContent = group.title + (url ? ' ↗' : '');
+      if (url) { title.href = url; title.target = '_blank'; title.rel = 'noopener'; }
       row.append(title);
-      if (task.brief) {
-        const button = document.createElement("button");
-        button.type = "button"; button.className = "asana-brief-button";
-        button.textContent = "View brief";
-        button.addEventListener("click", () => showAsanaBrief(task));
-        row.append(button);
+      const unread = new Set(DATA.asana?.unreadCommentTasks || []);
+      const parentUnread = unread.has(group.id);
+      const childUnread = group.subtasks.some(task => unread.has(asanaCommentTaskID(task.url)));
+      if (parentUnread || childUnread) {
+        const badge = document.createElement('button'); badge.type = 'button'; badge.className = 'asana-new-comments';
+        badge.textContent = '● New comments';
+        badge.title = parentUnread ? 'New comments on the parent task' : 'New comments on your subtasks';
+        badge.addEventListener('click', () => {
+          if (parentUnread && group.briefTask) showAsanaBrief(group.briefTask);
+          else { const details = row.querySelector('.asana-subtasks'); if (details) details.open = true; }
+        });
+        row.append(badge);
       }
-      if (!task.brief && typeof task.description === "string" && task.description.trim()) {
-        const details = document.createElement("details");
-        const summary = document.createElement("summary");
-        summary.textContent = "Task details";
-        const description = document.createElement("p");
-        description.className = "asana-task-description";
-        description.textContent = task.description.trim();
-        details.append(summary, description);
-        row.append(details);
+      const dueDate = group.tasks.map(task => task.dueDate).filter(Boolean).sort()[0];
+      if (dueDate) {
+        const due = document.createElement('time'); due.className = 'asana-task-due';
+        due.dateTime = dueDate;
+        due.dataset.urgency = asanaDueUrgency(dueDate, now);
+        due.textContent = 'Due ' + new Date(dueDate + 'T12:00:00').toLocaleDateString(undefined,
+          {weekday: 'short', month: 'short', day: 'numeric'});
+        row.append(due);
+      }
+      if (group.briefTask) {
+        const button = document.createElement('button'); button.type = 'button';
+        button.className = 'asana-brief-button'; button.textContent = 'View brief';
+        button.addEventListener('click', () => showAsanaBrief(group.briefTask)); row.append(button);
+      } else {
+        const status = document.createElement('small'); status.className = 'asana-task-due';
+        status.textContent = 'Loading parent brief…'; row.append(status);
+      }
+      if (group.subtasks.length) {
+        const details = document.createElement('details'); details.className = 'asana-subtasks';
+        details.dataset.group = group.id; details.open = expandedAsana.has(group.id);
+        const summary = document.createElement('summary');
+        summary.textContent = `Your subtasks (${group.subtasks.length})`;
+        const bullets = document.createElement('ul');
+        for (const task of group.subtasks) {
+          const item = document.createElement('li');
+          item.dataset.asanaSubtask = task.id;
+          const button = document.createElement('button'); button.type = 'button';
+          button.className = 'asana-subtask-button'; button.textContent = task.title;
+          button.addEventListener('click', () => showAsanaBrief(asanaSubtaskBrief(task)));
+          item.append(button);
+          if (unread.has(asanaCommentTaskID(task.url))) {
+            const badge = document.createElement('span'); badge.className = 'asana-new-comment-dot';
+            badge.textContent = '● New'; badge.setAttribute('aria-label', 'New comments'); item.append(badge);
+          }
+          const bridge = window.webkit?.messageHandlers?.asanaComments;
+          if (bridge && task.parent) {
+            const complete = document.createElement('button'); complete.type = 'button';
+            complete.className = 'asana-complete-button'; complete.textContent = 'Mark complete';
+            complete.setAttribute('aria-label', 'Mark ' + task.title + ' complete');
+            complete.disabled = !DATA.asana.completionEnabled;
+            if (complete.disabled) complete.title = 'Task completion is waiting for tasks:write permission to be enabled for the Asana app.';
+            const error = document.createElement('span'); error.className = 'asana-complete-error';
+            error.setAttribute('role', 'alert');
+            complete.addEventListener('click', async () => {
+              complete.disabled = true; complete.textContent = 'Completing…'; error.textContent = '';
+              try {
+                const result = await bridge.postMessage({action:'complete', taskURL:task.url, parent:false});
+                if (!result?.completed) throw Error('Completion was not confirmed. Refresh to check its status.');
+                DATA.asana.tasks = DATA.asana.tasks.filter(candidate => candidate.id !== task.id);
+                renderSchedule();
+              } catch (failure) {
+                error.textContent = failure?.message || String(failure);
+                complete.disabled = false; complete.textContent = 'Mark complete';
+              }
+            });
+            item.append(complete, error);
+          }
+          bullets.append(item);
+        }
+        details.append(summary, bullets); row.append(details);
+        row.classList.add('asana-task-expandable');
+        row.addEventListener('click', event => {
+          if (event.target.closest('a, button, summary, input, select, textarea, [role="button"]')) return;
+          if (window.getSelection()?.toString()) return;
+          details.open = !details.open;
+        });
       }
       section.append(row);
     }
     list.append(section);
   }
+  updateAsanaSubtaskHighlight();
   updateScheduleTime(now);
 }
 
@@ -1635,11 +1762,24 @@ function makeDialogMovable(dialog) {
 
 document.querySelectorAll('dialog').forEach(makeDialogMovable);
 
+function updateAsanaSubtaskHighlight() {
+  const dialog = document.getElementById('asana-brief-dialog');
+  const active = dialog?.open ? dialog.dataset.subtask : null;
+  document.querySelectorAll('[data-asana-subtask]').forEach(row => {
+    const selected = !!active && row.dataset.asanaSubtask === active;
+    row.classList.toggle('asana-subtask-active', selected);
+    const button = row.querySelector('.asana-subtask-button');
+    if (selected) button?.setAttribute('aria-current', 'true');
+    else button?.removeAttribute('aria-current');
+  });
+}
+
 function showAsanaBrief(task) {
   const previous = document.getElementById('asana-brief-dialog');
   if (previous) { previous.close(); previous.remove(); }
   const dialog = document.createElement('dialog');
   dialog.id = 'asana-brief-dialog'; dialog.className = 'asana-brief-dialog';
+  if (task.isSubtask) dialog.dataset.subtask = task.id;
   dialog.setAttribute('aria-labelledby', 'asana-brief-title');
   const head = document.createElement('header');
   const title = document.createElement('h2');
@@ -1680,12 +1820,13 @@ function showAsanaBrief(task) {
   if (window.webkit?.messageHandlers?.asanaComments) addAsanaComments(content, task, dialog, close);
   dialog.append(head, content); document.body.append(dialog);
   makeDialogMovable(dialog);
-  dialog.addEventListener('close', () => dialog.remove());
+  dialog.addEventListener('close', () => { dialog.remove(); updateAsanaSubtaskHighlight(); });
   dialog.addEventListener('click', event => {
     const box = dialog.getBoundingClientRect();
     if (event.target === dialog && (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom)) dialog.close();
   });
   dialog.showModal();
+  updateAsanaSubtaskHighlight();
 }
 
 
@@ -1703,7 +1844,7 @@ function addAsanaComments(content, task, dialog, close) {
   const status = document.createElement('p'); status.setAttribute('role', 'status');
   const list = document.createElement('div'); list.className = 'asana-comment-list';
   const refresh = document.createElement('button'); refresh.type = 'button'; refresh.textContent = 'Refresh'; refresh.setAttribute('aria-label', 'Refresh comments');
-  const more = document.createElement('button'); more.type = 'button'; more.textContent = 'Load more'; more.hidden = true;
+  const more = document.createElement('button'); more.type = 'button'; more.textContent = 'View previous comments'; more.className = 'asana-previous-comments'; more.hidden = true;
   const form = document.createElement('form');
   const destination = document.createElement('label');
   const input = document.createElement('textarea'); input.rows = 3; input.maxLength = 10000;
@@ -1712,8 +1853,8 @@ function addAsanaComments(content, task, dialog, close) {
   const hint = document.createElement('p'); hint.textContent = 'Visible to everyone with access to this task.';
   destination.append(input); form.append(destination, hint, send);
   const toolbar = document.createElement('div'); toolbar.className = 'asana-comments-toolbar'; toolbar.append(heading, refresh);
-  area.append(toolbar, label, status, list, more, form); content.append(area);
-  let busy = false, posting = false, next = '', count = 0;
+  area.append(toolbar, label, status, more, list, form); content.append(area);
+  let busy = false, posting = false, next = '', count = 0, visibleComments = 4;
   let revision = 0, polling = false, stopped = false, retryAt = 0, failures = 0;
   const drafts = {}, ids = new Set(), offsets = new Set(), people = new Map();
   let selected = select.value;
@@ -1729,6 +1870,11 @@ function addAsanaComments(content, task, dialog, close) {
   function targetLabel() {
     destination.firstChild?.nodeType === Node.TEXT_NODE && destination.firstChild.remove();
     destination.prepend(document.createTextNode(select.value === 'parent' ? 'Reply to parent task' : 'Reply to this task'));
+  }
+  function showRecentComments() {
+    const items = [...list.children];
+    items.forEach((item, index) => { item.hidden = index < items.length - visibleComments; });
+    more.hidden = items.length <= visibleComments;
   }
   function append(comments) {
     for (const comment of comments || []) { if (comment.authorID) people.set(comment.authorID, {name: comment.author, photo: comment.avatar}); }
@@ -1747,20 +1893,39 @@ function addAsanaComments(content, task, dialog, close) {
       item.append(author, time, text); list.append(item);
     }
   }
+  async function markViewed(comments) {
+    if (!dialog.open || document.hidden) return;
+    const latest = (comments || []).map(comment => comment.createdAt || '').sort().at(-1) || '';
+    try {
+      const parent = select.value === 'parent';
+      const result = await bridge.postMessage({action:'read',taskURL:task.url,parent,latest});
+      if (result?.read) {
+        const target = asanaCommentTaskID(parent ? task.brief.parentURL : task.url);
+        DATA.asana.unreadCommentTasks = (DATA.asana.unreadCommentTasks || []).filter(id => id !== target);
+        renderSchedule();
+      }
+    } catch { /* Keep the indicator if read acknowledgement could not be saved. */ }
+  }
   async function load(reset) {
     if (busy) return;
     revision++;
     controls(true); status.textContent = 'Loading comments…';
-    if (reset) { next = ''; count = 0; ids.clear(); offsets.clear(); list.replaceChildren(); more.hidden = true; }
+    if (reset) visibleComments = 4;
     try {
-      const result = await bridge.postMessage({action: 'load', taskURL: task.url, parent: select.value === 'parent', ...(next ? {offset: next} : {})});
-      if (!dialog.isConnected) return;
-      append(result.comments);
-      next = result.next || '';
-      if (offsets.has(next)) next = '';
-      if (next) offsets.add(next);
-      more.hidden = !next;
-      status.textContent = count ? 'Comments loaded.' : next ? 'No comments on this page. Load more to continue.' : 'No comments yet. Start the conversation.';
+      // Asana returns oldest first, so reach the final page before choosing the newest four.
+      const comments = [], cursors = new Set();
+      let offset = '';
+      do {
+        const result = await bridge.postMessage({action:'load', taskURL:task.url, parent:select.value === 'parent', ...(offset ? {offset} : {})});
+        if (!dialog.isConnected) return;
+        comments.push(...(result.comments || []));
+        offset = result.next || '';
+        if (offset && (cursors.has(offset) || cursors.size >= 50)) throw Error('Could not reach the newest comments. Use Refresh to try again.');
+        if (offset) cursors.add(offset);
+      } while (offset);
+      ids.clear(); count = 0; list.replaceChildren(); append(comments); showRecentComments();
+      await markViewed(comments);
+      status.textContent = count ? 'Showing the latest ' + Math.min(count, visibleComments) + ' comments.' : 'No comments yet. Start the conversation.';
     } catch (error) { status.textContent = String(error.message || error); }
     finally { controls(false); }
   }
@@ -1771,7 +1936,7 @@ function addAsanaComments(content, task, dialog, close) {
   });
   input.addEventListener('input', () => { drafts[selected] = input.value; send.disabled = busy || !input.value.trim(); });
   refresh.addEventListener('click', () => load(true));
-  more.addEventListener('click', () => load(false));
+  more.addEventListener('click', () => { visibleComments += 4; showRecentComments(); status.textContent = 'Showing ' + Math.min(count, visibleComments) + ' of ' + count + ' comments.'; });
   dialog.addEventListener('cancel', event => { if (posting) event.preventDefault(); });
   form.addEventListener('submit', async event => {
     event.preventDefault();
@@ -1780,7 +1945,7 @@ function addAsanaComments(content, task, dialog, close) {
     controls(true, true); status.textContent = 'Posting comment…';
     try {
       const result = await bridge.postMessage({action: 'post', taskURL: task.url, parent: select.value === 'parent', text: input.value, mentions: mentionPicker.snapshot()});
-      append(result.comments); input.value = ''; drafts[selected] = ''; mentionPicker.restore([]);
+      append(result.comments); showRecentComments(); await markViewed(result.comments); input.value = ''; drafts[selected] = ''; mentionPicker.restore([]);
       status.textContent = 'Comment posted to ' + select.selectedOptions[0].textContent + '.';
     } catch (error) { status.textContent = String(error.message || error); }
     finally { controls(false); }
@@ -1806,8 +1971,9 @@ function addAsanaComments(content, task, dialog, close) {
       // Leave the composer, selected mentions and focus untouched.
       const oldMarkup = list.innerHTML;
       ids.clear(); count = 0; list.replaceChildren(); append(comments);
+      next = ''; offsets.clear(); showRecentComments();
       const changed = oldMarkup !== list.innerHTML;
-      next = ''; offsets.clear(); more.hidden = true;
+      await markViewed(comments);
       content.scrollTop = top;
       status.textContent = changed ? 'Comments updated automatically.' : count ? 'Comments up to date.' : 'No comments yet. Start the conversation.';
       failures = 0; retryAt = 0;
@@ -1909,7 +2075,10 @@ function asanaMentionPicker(input, bridge, taskURL, parent) {
   const menu = document.createElement('div'); menu.className = 'asana-mention-menu'; menu.hidden = true;
   menu.id = 'asana-mention-options'; menu.setAttribute('role', 'listbox'); menu.setAttribute('aria-label', 'Coworkers');
   const note = document.createElement('small'); note.className = 'asana-mention-help'; note.textContent = 'Type @ to tag a coworker. Select a name to create a real mention.';
-  input.parentElement.append(menu, note);
+  const anchor = document.createElement('div'); anchor.className = 'asana-mention-anchor';
+  input.parentElement.insertBefore(anchor, input);
+  anchor.append(input, menu);
+  anchor.after(note);
   input.setAttribute('aria-autocomplete', 'list'); input.setAttribute('aria-controls', menu.id);
   let users, loading, previous = input.value, mentions = [], matches = [], active = 0, queryRange;
   function hide() { menu.hidden = true; input.setAttribute('aria-expanded', 'false'); input.removeAttribute('aria-activedescendant'); }

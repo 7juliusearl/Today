@@ -71,8 +71,7 @@ import Security
             self.source = source; generation += 1; assigned = nil; assignedChecked = .distantPast; cache.removeAll(); checked.removeAll()
         }
         guard !fetching else { return }
-        let today = DateFormatter(); today.dateFormat = "yyyy-MM-dd"; today.locale = Locale(identifier: "en_US_POSIX")
-        let ids = Array(Set((directTasks ?? tasks).filter { $0.dueDate == today.string(from: Date()) }.compactMap { Self.taskID($0.url) })).sorted()
+        let ids = Array(Set((directTasks ?? tasks).compactMap { Self.taskID($0.url) })).sorted()
         cache = cache.filter { ids.contains($0.key) }
         var pending = Array(ids.filter { Date().timeIntervalSince(checked[$0] ?? .distantPast) > 300 }.prefix(30))
         let loadAssigned = !workspace.isEmpty && Date().timeIntervalSince(assignedChecked) > 300
@@ -88,10 +87,11 @@ import Security
                     assigned = try await fetchAssigned(token: token, workspace: workspace)
                     guard current == generation, enabled else { assigned = nil; return }
                     assignedChecked = Date()
-                    let directIDs = Set((assigned ?? []).filter { $0.dueDate == today.string(from: Date()) }.compactMap { Self.taskID($0.url) })
+                    let directIDs = Set((assigned ?? []).compactMap { Self.taskID($0.url) })
                     pending = Array(directIDs.filter { Date().timeIntervalSince(checked[$0] ?? .distantPast) > 300 }.sorted().prefix(30))
                     status = "Connected. Assigned tasks come directly from Asana; no calendar subscription needed."
                 }
+                var parentDetails: [String: APITask] = [:]
                 for id in pending {
                     guard current == generation, enabled else { return }
                     do {
@@ -99,12 +99,15 @@ import Security
                         var parent: APITask?
                         var message: String?
                         if let parentID = task.parent?.gid {
-                            do { parent = try await fetch(parentID, token: token) }
+                            do {
+                                if let existing = parentDetails[parentID] { parent = existing }
+                                else { let loaded = try await fetch(parentID, token: token); parentDetails[parentID] = loaded; parent = loaded }
+                            }
                             catch { message = "Parent brief unavailable. Open the parent task in Asana to check access." }
                         }
                         guard current == generation, enabled else { return }
                         cache[id] = AsanaBrief(title: task.name, description: task.notes ?? "", url: task.permalink_url,
-                            parentTitle: parent?.name, parentDescription: parent?.notes, parentURL: parent?.permalink_url, message: message)
+                            parentTitle: parent?.name, parentDescription: parent?.notes, parentURL: parent?.permalink_url ?? task.parent.map { "https://app.asana.com/0/0/\($0.gid)" }, message: message)
                         status = "Connected. Parent briefs refresh every five minutes while Today refreshes."
                     } catch {
                         guard current == generation, enabled else { return }
@@ -113,6 +116,7 @@ import Security
                     }
                     checked[id] = Date()
                 }
+                await refreshCommentActivity(directTasks ?? tasks, current: current)
             } catch {
                 guard current == generation, enabled else { return }
                 if loadAssigned { assignedChecked = Date(); assigned = nil }
@@ -121,12 +125,60 @@ import Security
             }
         }
     }
+    private var activityKey: String { "asanaCommentActivity:" + workspace }
+    private var unreadKey: String { "asanaUnreadComments:" + workspace }
+    var unreadCommentTasks: [String] { UserDefaults.standard.stringArray(forKey: unreadKey) ?? [] }
+    private func recordActivity(_ id: String, latest: String, viewed: Bool) {
+        var activity = AsanaCommentActivity(
+            history: UserDefaults.standard.dictionary(forKey: activityKey) as? [String: String] ?? [:],
+            unread: Set(unreadCommentTasks))
+        activity.record(id, latest: latest, viewed: viewed)
+        UserDefaults.standard.set(activity.history, forKey: activityKey)
+        UserDefaults.standard.set(Array(activity.unread).sorted(), forKey: unreadKey)
+    }
+    func markCommentsViewed(taskURL: String, parent: Bool, latest: String) throws -> [String: Any] {
+        guard enabled, auth.connected, let id = Self.taskID(taskURL),
+              let brief = verifiedAsanaBrief(id, cache: cache, taskID: Self.taskID),
+              let target = parent ? Self.taskID(brief.parentURL) : id else {
+            throw AsanaAuth.AuthError("This conversation is no longer loaded. Reopen the brief.")
+        }
+        let fractional = ISO8601DateFormatter(); fractional.formatOptions.insert(.withFractionalSeconds)
+        guard latest.isEmpty || ISO8601DateFormatter().date(from: latest) != nil || fractional.date(from: latest) != nil else {
+            throw AsanaAuth.AuthError("Invalid comment date.")
+        }
+        recordActivity(target, latest: latest, viewed: true)
+        onChange?()
+        return ["read": true]
+    }
+    private func refreshCommentActivity(_ tasks: [AsanaPayload.Task], current: Int) async {
+        var targets = Set(tasks.compactMap { Self.taskID($0.url) })
+        for brief in cache.values { if let parent = Self.taskID(brief.parentURL) { targets.insert(parent) } }
+        for id in targets.sorted() {
+            guard current == generation, enabled else { return }
+            let url = "https://app.asana.com/0/0/\(id)"
+            guard verifiedAsanaBrief(id, cache: cache, taskID: Self.taskID) != nil else { continue }
+            do {
+                var offset: String? = nil, seen = Set<String>(), latest = ""
+                repeat {
+                    let page = try await comments(taskURL: url, parent: false, text: nil, offset: offset)
+                    guard current == generation, enabled else { return }
+                    for comment in page["comments"] as? [[String: Any]] ?? [] {
+                        latest = max(latest, comment["createdAt"] as? String ?? "")
+                    }
+                    offset = (page["next"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+                    if let offset, !seen.insert(offset).inserted || seen.count > 50 { throw AsanaAuth.AuthError("Comment activity pagination stalled.") }
+                } while offset != nil
+                recordActivity(id, latest: latest, viewed: false)
+            } catch { /* Keep existing unread state on temporary failures. */ }
+        }
+    }
+
     private var mentionPeople: [[String: String]] = []
     private var peopleGeneration = -1
     private var peopleChecked = Date.distantPast
     func users(taskURL: String) async throws -> [String: Any] {
         guard enabled, auth.connected, !workspace.isEmpty,
-              let id = Self.taskID(taskURL), cache[id] != nil else {
+              let id = Self.taskID(taskURL), verifiedAsanaBrief(id, cache: cache, taskID: Self.taskID) != nil else {
             throw AsanaAuth.AuthError("Connect Asana, choose a workspace, and reopen the brief.")
         }
         let current = generation
@@ -160,10 +212,49 @@ import Security
         mentionPeople = people; peopleGeneration = current; peopleChecked = Date()
         return ["users": people]
     }
+    private var completing = Set<String>()
+    func completeSubtask(taskURL: String) async throws -> [String: Any] {
+        guard AsanaAuth.completionEnabled else { throw AsanaAuth.AuthError("Task completion needs tasks:write enabled in the Asana developer console first.") }
+        guard enabled, auth.connected, let id = Self.taskID(taskURL),
+              assigned?.contains(where: { Self.taskID($0.url) == id && $0.parent != nil }) == true else {
+            throw AsanaAuth.AuthError("Only your loaded assigned subtasks can be completed. Refresh and try again.")
+        }
+        guard completing.insert(id).inserted else { throw AsanaAuth.AuthError("This subtask is already being completed.") }
+        defer { completing.remove(id) }
+        let current = generation
+        let token = try await auth.accessToken()
+        guard current == generation, enabled else { throw CancellationError() }
+        var request = URLRequest(url: URL(string: "https://app.asana.com/api/1.0/tasks/\(id)?opt_fields=gid,completed")!)
+        request.httpMethod = "PUT"; request.timeoutInterval = 20
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["data": ["completed": true]])
+        let responseData: Data
+        let response: URLResponse
+        do { (responseData, response) = try await session.data(for: request) }
+        catch { throw AsanaAuth.AuthError("Completion could not be confirmed. Refresh to check the subtask’s status.") }
+        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard code == 200 else {
+            throw AsanaAuth.AuthError(code == 401 || code == 403
+                ? "Reconnect Asana in Settings to approve task completion (tasks:write), then try again."
+                : "Completion could not be confirmed (Asana \(code)). Refresh to check its status.")
+        }
+        struct Result: Decodable { struct Task: Decodable { let gid: String; let completed: Bool }; let data: Task }
+        guard let result = try? JSONDecoder().decode(Result.self, from: responseData), result.data.gid == id, result.data.completed else {
+            throw AsanaAuth.AuthError("Completion could not be confirmed. Refresh to check its status.")
+        }
+        guard current == generation else { throw CancellationError() }
+        assigned?.removeAll { Self.taskID($0.url) == id }
+        cache.removeValue(forKey: id); checked.removeValue(forKey: id)
+        status = "Subtask completed in Asana."
+        onChange?()
+        return ["completed": true]
+    }
+
     private var postingComments = Set<String>()
     // Only the task represented by a loaded brief, or its verified parent, may be addressed.
     func comments(taskURL: String, parent: Bool, text: String?, offset: String?, mentions: [[String: Any]] = []) async throws -> [String: Any] {
-        guard enabled, auth.connected, let id = Self.taskID(taskURL), let brief = cache[id],
+        guard enabled, auth.connected, let id = Self.taskID(taskURL), let brief = verifiedAsanaBrief(id, cache: cache, taskID: Self.taskID),
               let target = parent ? Self.taskID(brief.parentURL) : id else {
             throw NSError(domain: "Asana", code: 1, userInfo: [NSLocalizedDescriptionKey: "Reconnect Asana in Settings and reopen the task brief."])
         }
@@ -256,7 +347,7 @@ import Security
             url.queryItems = [URLQueryItem(name: "workspace", value: workspace), URLQueryItem(name: "assignee", value: "me"),
                 URLQueryItem(name: "completed_since", value: ISO8601DateFormatter().string(from: Date())),
                 URLQueryItem(name: "limit", value: "100"),
-                URLQueryItem(name: "opt_fields", value: "gid,name,completed,due_on,due_at,notes,permalink_url")]
+                URLQueryItem(name: "opt_fields", value: "gid,name,completed,due_on,due_at,notes,permalink_url,parent.gid,parent.name")]
             if let offset { url.queryItems?.append(URLQueryItem(name: "offset", value: offset)) }
             var request = URLRequest(url: url.url!); request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
             let page = try JSONDecoder().decode(Page.self, from: await data(request))
@@ -271,7 +362,10 @@ import Security
         var request = request; request.timeoutInterval = 20
         let (data, response) = try await session.data(for: request)
         guard let response = response as? HTTPURLResponse, response.statusCode == 200 else {
-            throw Failure(message: "Asana could not provide details. Check the connection and task permissions.")
+            let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+            let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            let detail = (object?["errors"] as? [[String: Any]])?.first?["message"] as? String
+            throw Failure(message: "Asana request failed (\(code)). " + (detail ?? "Check task access and permissions."))
         }
         return data
     }

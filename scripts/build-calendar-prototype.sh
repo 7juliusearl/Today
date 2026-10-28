@@ -117,6 +117,7 @@ import pathlib, plistlib, sys
 path = pathlib.Path(sys.argv[1])
 info = plistlib.loads(path.read_bytes())
 info['TodayPersonalDataDirectory'] = sys.argv[2]
+info['TodayAsanaTaskCompletionEnabled'] = True
 repo = pathlib.Path(sys.argv[3])
 release = __import__('json').loads((repo/'release.json').read_text())
 info['CFBundleShortVersionString'] = release['version']

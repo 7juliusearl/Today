@@ -26,9 +26,8 @@
   input.value = 'Task draft'; input.dispatchEvent(new Event('input'));
   select.value = 'parent'; select.dispatchEvent(new Event('change')); await tick();
   assert(input.value === 'Parent draft', 'Switching preserves parent draft');
-  const more = Array.from(area.querySelectorAll('button')).find(b => b.textContent === 'Load more');
-  more.click(); await tick();
-  assert(requests.at(-1).offset === 'page2' && more.hidden, 'Pagination follows cursor and ends');
+  const more = Array.from(area.querySelectorAll('button')).find(b => b.textContent === 'View previous comments');
+  assert(requests.at(-1).offset === 'page2' && more.hidden, 'Initial load reaches final page; no previous-comments link for one deduplicated comment');
   assert(area.querySelectorAll('article').length === 1, 'Pagination deduplicates comments');
   fail = true; form.dispatchEvent(new Event('submit', {cancelable:true})); await tick();
   assert(send.disabled && select.disabled && close.disabled, 'Posting locks duplicate submission and destination');
