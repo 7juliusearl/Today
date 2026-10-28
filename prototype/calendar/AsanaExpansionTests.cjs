@@ -1,0 +1,12 @@
+const fs = require('node:fs');
+const vm = require('node:vm');
+const assert = require('node:assert/strict');
+const source = fs.readFileSync(require('node:path').join(__dirname,'../../app.js'),'utf8');
+vm.runInThisContext(source.slice(source.indexOf('function dashboardDetailKey('),source.indexOf('// Native refreshes update')));
+const row = (group, count) => ({dataset:{group}, querySelector:()=>({textContent:`Your subtasks (${count})`})});
+const open = row('parent-A',3), closed = row('parent-B',3);
+const expanded = new Set([dashboardDetailKey(open)]);
+assert(expanded.has(dashboardDetailKey(row('parent-A',2))), 'Expanded parent stays open after its subtask count changes');
+assert(!expanded.has(dashboardDetailKey(closed)), 'Closed parent stays closed when another parent has the same number of subtasks');
+assert(!expanded.has(dashboardDetailKey(row('parent-C',3))), 'New parents do not inherit expansion from identical summary text');
+console.log('PASS: independent expansion state per parent, stable across refreshes and subtask count changes.');

@@ -1613,13 +1613,18 @@ function renderStickyNotes() {
   });
 }
 
+function dashboardDetailKey(el) {
+  return el.dataset.group ? 'asana-group:' + el.dataset.group :
+    el.dataset.eventKey || el.id || el.querySelector('summary')?.textContent;
+}
+
 // Native refreshes update content in place; they must not navigate the web view.
 window.refreshLocalDashboard = function () {
   if (!window.LOCAL_CALENDAR_PROTOTYPE) return;
   const x = window.scrollX;
   const y = window.scrollY;
   const panelScroll = Array.from(document.querySelectorAll(".panel-body, .bento-workschedule, .bento-plan, .happening-now, .hero"), el => [el, el.scrollTop]);
-  const detailKey = el => el.dataset.eventKey || el.id || el.querySelector("summary")?.textContent;
+  const detailKey = dashboardDetailKey;
   const expanded = new Set(Array.from(document.querySelectorAll("details[open]"), detailKey));
   DATA = window.DASHBOARD_DATA;
   renderGreetingAndClock();
