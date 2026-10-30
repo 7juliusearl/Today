@@ -358,6 +358,11 @@ function asanaSubtaskBrief(task) {
     url: task.url, message: task.brief?.message}};
 }
 
+function highlightAsanaComments(element, ids, unread) {
+  const active = ids.filter(id => unread.has(id));
+  element.classList.toggle('asana-comments-unread', active.length > 0);
+}
+
 function renderSchedule() {
   const list = document.getElementById("schedule-list");
   const events = (DATA.calendar && DATA.calendar.events) || [];
@@ -392,6 +397,15 @@ function renderSchedule() {
     }
     for (const group of groups) {
       const row = document.createElement('div'); row.className = 'asana-task';
+      const chrome = document.createElement('div'); chrome.className = 'asana-window-bar';
+      chrome.setAttribute('aria-hidden', 'true');
+      const windowLabel = document.createElement('span'); windowLabel.className = 'asana-window-label';
+      windowLabel.textContent = '▤  TASK ' + String(groups.indexOf(group) + 1).padStart(2, '0');
+      const controls = document.createElement('span'); controls.className = 'asana-window-controls';
+      for (const symbol of ['—', '□', '×']) {
+        const decoration = document.createElement('span'); decoration.textContent = symbol; controls.append(decoration);
+      }
+      chrome.append(windowLabel, controls); row.append(chrome);
       const url = asanaDesktopLink(group.url);
       const title = document.createElement(url ? 'a' : 'p');
       title.className = 'asana-task-title'; title.textContent = group.title + (url ? ' ↗' : '');
@@ -400,6 +414,7 @@ function renderSchedule() {
       const unread = new Set(DATA.asana?.unreadCommentTasks || []);
       const parentUnread = unread.has(group.id);
       const childUnread = group.subtasks.some(task => unread.has(asanaCommentTaskID(task.url)));
+      highlightAsanaComments(row, [group.id, ...group.subtasks.map(task => asanaCommentTaskID(task.url))], unread);
       if (parentUnread || childUnread) {
         const badge = document.createElement('button'); badge.type = 'button'; badge.className = 'asana-new-comments';
         badge.textContent = '● New comments';
@@ -436,6 +451,7 @@ function renderSchedule() {
         for (const task of group.subtasks) {
           const item = document.createElement('li');
           item.dataset.asanaSubtask = task.id;
+          highlightAsanaComments(item, [asanaCommentTaskID(task.url)], unread);
           const button = document.createElement('button'); button.type = 'button';
           button.className = 'asana-subtask-button'; button.textContent = task.title;
           button.addEventListener('click', () => showAsanaBrief(asanaSubtaskBrief(task)));
@@ -472,6 +488,7 @@ function renderSchedule() {
         details.append(summary, bullets); row.append(details);
         row.classList.add('asana-task-expandable');
         row.addEventListener('click', event => {
+          if (event.target.closest('.asana-window-bar')) return;
           if (event.target.closest('a, button, summary, input, select, textarea, [role="button"]')) return;
           if (window.getSelection()?.toString()) return;
           details.open = !details.open;

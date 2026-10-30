@@ -1986,3 +1986,74 @@ dialog[data-movable]::backdrop { background: transparent; }
 
 .asana-new-comments { display: inline-block; margin: 7px 0 3px; padding: 4px 8px; border: 0; border-radius: 12px; background: color-mix(in srgb, var(--accent) 15%, var(--bg)); color: var(--ink); font: inherit; font-size: 11px; font-weight: 700; cursor: pointer; }
 .asana-new-comment-dot { margin-left: 8px; color: var(--accent); font-size: 10px; font-weight: 700; white-space: nowrap; }
+
+/* Keep the whole task glowing until its comments have been read. */
+.asana-comments-unread { position: relative; }
+.schedule-asana > .asana-task.asana-comments-unread,
+.schedule-asana > .asana-task.asana-comments-unread:has(> .asana-subtasks[open]) {
+  padding: 18px 16px;
+  margin-block: 10px;
+}
+.asana-subtasks li.asana-comments-unread { padding: 12px; }
+.asana-comments-unread::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  background: color-mix(in srgb, var(--accent) 4%, transparent);
+  pointer-events: none;
+  box-shadow: 0 0 12px 2px color-mix(in srgb, var(--accent) 28%, transparent);
+  animation: asana-comment-glow 2.8s ease-in-out infinite;
+}
+.asana-new-comments { color: var(--accent); }
+@keyframes asana-comment-glow {
+  0%, 100% { box-shadow: 0 0 10px 2px color-mix(in srgb, var(--accent) 24%, transparent); }
+  50% {
+    border-color: color-mix(in srgb, var(--accent) 65%, transparent);
+    box-shadow: 0 0 22px 5px color-mix(in srgb, var(--accent) 42%, transparent), inset 0 0 12px color-mix(in srgb, var(--accent) 10%, transparent);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .asana-comments-unread::after { animation: none; }
+}
+
+.asana-window-bar { display: none; }
+:root[data-design="retro"] .page .schedule-asana > .asana-task,
+:root[data-design="retro"] .page .schedule-asana > .asana-task:has(> .asana-subtasks[open]) {
+  position: relative;
+  margin: 18px 4px 20px 0;
+  padding: 0 18px 20px;
+  border: 2px solid var(--retro-outline);
+  border-radius: 3px;
+  background: var(--glass-bg);
+  box-shadow: 3px 3px 0 var(--retro-shadow);
+}
+:root[data-design="retro"] .asana-window-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 -18px 18px;
+  padding: 6px 9px;
+  border-bottom: 2px solid var(--retro-outline);
+  background: var(--accent-soft);
+  color: var(--ink);
+  font: 700 11px/1.4 var(--mono);
+  letter-spacing: .06em;
+  cursor: default;
+}
+.asana-window-controls { display: flex; gap: 4px; }
+.asana-window-controls > span {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--retro-outline);
+  background: var(--glass-bg);
+  font: 700 14px/1 var(--mono);
+}
+:root[data-design="retro"] .schedule-asana > .asana-comments-unread::after {
+  inset: -2px;
+  border-radius: 3px;
+}
