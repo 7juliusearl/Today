@@ -306,6 +306,13 @@ function asanaTasksThisWeek(tasks, now = new Date()) {
   return tasks.filter(task => task.dueDate && task.dueDate >= start && task.dueDate < end);
 }
 
+function asanaTasksForDisplay(tasks, unreadIDs, now = new Date()) {
+  const weekly = new Set(asanaTasksThisWeek(tasks, now).map(task => task.id));
+  const unread = new Set(unreadIDs || []);
+  return tasks.filter(task => weekly.has(task.id) || unread.has(asanaCommentTaskID(task.url)) ||
+    unread.has(task.parent?.gid) || unread.has(asanaCommentTaskID(task.brief?.parentURL)));
+}
+
 function groupAsanaTasks(tasks) {
   const taskID = value => {
     try {
@@ -355,7 +362,7 @@ function renderSchedule() {
   const list = document.getElementById("schedule-list");
   const events = (DATA.calendar && DATA.calendar.events) || [];
 
-  const tasks = asanaTasksThisWeek(DATA.asana?.tasks || []);
+  const tasks = asanaTasksForDisplay(DATA.asana?.tasks || [], DATA.asana?.unreadCommentTasks);
   const expandedAsana = new Set([...list.querySelectorAll(".asana-subtasks[open]")].map(el => el.dataset.group));
   if (events.length === 0 && tasks.length === 0) {
     list.innerHTML = `<p class="empty-state">Nothing on your calendar today. Enjoy the open space.</p>`;
@@ -372,10 +379,10 @@ function renderSchedule() {
   if (tasks.length) {
     const section = document.createElement("section");
     section.className = "schedule-asana";
-    section.setAttribute("aria-label", "Asana tasks due this week");
+    section.setAttribute("aria-label", "Asana tasks due this week and assignments with new comments");
     const heading = document.createElement("p");
     heading.className = "upcoming-day-date";
-    heading.textContent = "Asana · This week";
+    heading.textContent = "Asana · This week & new comments";
     section.append(heading);
     const groups = groupAsanaTasks(tasks);
     if (!groups.length) {

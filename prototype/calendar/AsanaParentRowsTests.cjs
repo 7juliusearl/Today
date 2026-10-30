@@ -2,7 +2,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
 const source = fs.readFileSync(require('node:path').join(__dirname, '../../app.js'), 'utf8');
-vm.runInThisContext(source.slice(source.indexOf('function asanaTasksThisWeek('), source.indexOf('function renderSchedule(')));
+vm.runInThisContext(source.slice(source.indexOf('function asanaCommentTaskID('), source.indexOf('function renderSchedule(')));
 const parentURL = 'https://app.asana.com/0/0/99';
 const groups = groupAsanaTasks([
   {id:'a', title:'Subtask A', parent:{gid:'99',name:'Parent'}, brief:{description:'Child instructions', parentTitle:'Parent', parentURL, parentDescription:'Parent brief'}},
@@ -46,3 +46,14 @@ assert.equal(asanaDueUrgency('2026-10-30',today),'soon');
 assert.equal(asanaDueUrgency('2026-10-31',today),'later');
 assert.equal(asanaDueUrgency('2026-11-02',new Date(2026,9,31,23,59)),'soon');
 console.log('PASS: due date urgency thresholds and daylight-saving boundary.');
+
+const monitored = [
+  {id:'weekly',url:'https://app.asana.com/0/0/1',dueDate:'2026-10-28'},
+  {id:'old',url:'https://app.asana.com/0/0/2',dueDate:'2026-01-01',parent:{gid:'20'}},
+  {id:'future',url:'https://app.asana.com/0/0/3',dueDate:'2027-01-01'},
+  {id:'undated',url:'https://app.asana.com/0/0/4',dueDate:''},
+];
+assert.deepEqual(asanaTasksForDisplay(monitored,[],today).map(t=>t.id), ['weekly']);
+assert.deepEqual(asanaTasksForDisplay(monitored,['20','3','4'],today).map(t=>t.id), ['weekly','old','future','undated']);
+assert.deepEqual(asanaTasksForDisplay(monitored,['2'],today).map(t=>t.id), ['weekly','old']);
+console.log('PASS: off-week and undated unread conversations surface, including parent replies; read tasks stay out of weekly view.');

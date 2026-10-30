@@ -4,10 +4,19 @@ import Security
 // Developer trial only: the coworker app never reads the developer's OAuth secret.
 @MainActor final class AsanaBriefs {
     let auth = AsanaAuth()
+    private var commentTimer: Timer?
+    private var lastTasks: [AsanaPayload.Task] = []
+    private var activityVersions: [String: String] = [:]
     init() {
+        commentTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.auth.connected else { return }
+                self.refresh(self.lastTasks, source: self.source)
+            }
+        }
         auth.onChange = { [weak self] in
             guard let self else { return }
-            self.generation += 1; self.assigned = nil; self.assignedChecked = .distantPast; self.cache.removeAll(); self.checked.removeAll()
+            self.generation += 1; self.assigned = nil; self.assignedChecked = .distantPast; self.cache.removeAll(); self.checked.removeAll(); self.activityVersions.removeAll()
             self.onChange?()
         }
     }
@@ -43,7 +52,7 @@ import Security
         let value = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard value.isEmpty || value.allSatisfy({ $0.isASCII && $0.isNumber }) else { return }
         UserDefaults.standard.set(value, forKey: "asanaDirectWorkspace")
-        generation += 1; assigned = nil; assignedChecked = .distantPast; cache.removeAll(); checked.removeAll()
+        generation += 1; assigned = nil; assignedChecked = .distantPast; cache.removeAll(); checked.removeAll(); activityVersions.removeAll()
         onChange?()
     }
     var onChange: (() -> Void)?
@@ -61,20 +70,21 @@ import Security
     func brief(for url: String?) -> AsanaBrief? { enabled ? Self.taskID(url).flatMap { cache[$0] } : nil }
     func setEnabled(_ value: Bool) {
         UserDefaults.standard.set(value, forKey: "asanaBriefsEnabled")
-        generation += 1; assigned = nil; assignedChecked = .distantPast; cache.removeAll(); checked.removeAll()
+        generation += 1; assigned = nil; assignedChecked = .distantPast; cache.removeAll(); checked.removeAll(); activityVersions.removeAll()
         status = value ? "Ready to load parent briefs." : "Direct Asana details are off."
         onChange?()
     }
     func refresh(_ tasks: [AsanaPayload.Task], source: String) {
+        lastTasks = tasks
         guard enabled else { return }
         if self.source != source {
-            self.source = source; generation += 1; assigned = nil; assignedChecked = .distantPast; cache.removeAll(); checked.removeAll()
+            self.source = source; generation += 1; assigned = nil; assignedChecked = .distantPast; cache.removeAll(); checked.removeAll(); activityVersions.removeAll()
         }
         guard !fetching else { return }
         let ids = Array(Set((directTasks ?? tasks).compactMap { Self.taskID($0.url) })).sorted()
         cache = cache.filter { ids.contains($0.key) }
         var pending = Array(ids.filter { Date().timeIntervalSince(checked[$0] ?? .distantPast) > 300 }.prefix(30))
-        let loadAssigned = !workspace.isEmpty && Date().timeIntervalSince(assignedChecked) > 300
+        let loadAssigned = !workspace.isEmpty && Date().timeIntervalSince(assignedChecked) > 25
         guard !pending.isEmpty || loadAssigned else { return }
         fetching = true
         let current = generation
@@ -151,25 +161,35 @@ import Security
         return ["read": true]
     }
     private func refreshCommentActivity(_ tasks: [AsanaPayload.Task], current: Int) async {
-        var targets = Set(tasks.compactMap { Self.taskID($0.url) })
-        for brief in cache.values { if let parent = Self.taskID(brief.parentURL) { targets.insert(parent) } }
-        for id in targets.sorted() {
+        var targets: [String: String] = [:]
+        for task in tasks {
+            if let id = Self.taskID(task.url) { targets[id] = task.commentVersion ?? "" }
+            if let parent = task.parent { targets[parent.gid] = parent.modified_at ?? "" }
+        }
+        for brief in cache.values {
+            if let parent = Self.taskID(brief.parentURL), targets[parent] == nil { targets[parent] = "" }
+        }
+        guard let token = try? await auth.accessToken() else { return }
+        for id in targets.keys.sorted() {
             guard current == generation, enabled else { return }
-            let url = "https://app.asana.com/0/0/\(id)"
-            guard verifiedAsanaBrief(id, cache: cache, taskID: Self.taskID) != nil else { continue }
+            let version = targets[id] ?? ""
+            if !version.isEmpty && activityVersions[id] == version { continue }
             do {
-                var offset: String? = nil, seen = Set<String>(), latest = ""
-                repeat {
-                    let page = try await comments(taskURL: url, parent: false, text: nil, offset: offset)
-                    guard current == generation, enabled else { return }
-                    for comment in page["comments"] as? [[String: Any]] ?? [] {
-                        latest = max(latest, comment["createdAt"] as? String ?? "")
-                    }
-                    offset = (page["next"] as? String).flatMap { $0.isEmpty ? nil : $0 }
-                    if let offset, !seen.insert(offset).inserted || seen.count > 50 { throw AsanaAuth.AuthError("Comment activity pagination stalled.") }
-                } while offset != nil
+                var url = URLComponents(string: "https://app.asana.com/api/1.0/tasks/\(id)/stories")!
+                url.queryItems = [URLQueryItem(name: "limit", value: "1"),
+                    URLQueryItem(name: "resource_subtype", value: "comment_added"),
+                    URLQueryItem(name: "sort_ascending", value: "false"),
+                    URLQueryItem(name: "opt_fields", value: "gid,created_at,resource_subtype")]
+                var request = URLRequest(url: url.url!); request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                struct Page: Decodable { struct Story: Decodable { let created_at: String; let resource_subtype: String }; let data: [Story] }
+                let page = try JSONDecoder().decode(Page.self, from: await data(request))
+                guard current == generation, enabled else { return }
+                let latest = page.data.filter { $0.resource_subtype == "comment_added" }.map(\.created_at).max() ?? ""
+                let before = unreadCommentTasks
                 recordActivity(id, latest: latest, viewed: false)
-            } catch { /* Keep existing unread state on temporary failures. */ }
+                activityVersions[id] = version
+                if before != unreadCommentTasks { onChange?() }
+            } catch { /* Keep unread state and retry this conversation on the next poll. */ }
         }
     }
 
@@ -274,6 +294,7 @@ import Security
         url.queryItems = [URLQueryItem(name: "opt_fields", value: commentFields + (isPost ? "" : ",created_by.gid,created_by.photo.image_60x60"))]
         if !isPost {
             url.queryItems?.append(URLQueryItem(name: "limit", value: "100"))
+            url.queryItems?.append(URLQueryItem(name: "resource_subtype", value: "comment_added"))
             if let offset, !offset.isEmpty, offset.count <= 4096 { url.queryItems?.append(URLQueryItem(name: "offset", value: offset)) }
         }
         var request = URLRequest(url: url.url!); request.timeoutInterval = 30
@@ -347,7 +368,7 @@ import Security
             url.queryItems = [URLQueryItem(name: "workspace", value: workspace), URLQueryItem(name: "assignee", value: "me"),
                 URLQueryItem(name: "completed_since", value: ISO8601DateFormatter().string(from: Date())),
                 URLQueryItem(name: "limit", value: "100"),
-                URLQueryItem(name: "opt_fields", value: "gid,name,completed,due_on,due_at,notes,permalink_url,parent.gid,parent.name")]
+                URLQueryItem(name: "opt_fields", value: "gid,name,completed,due_on,due_at,notes,permalink_url,modified_at,parent.gid,parent.name,parent.modified_at")]
             if let offset { url.queryItems?.append(URLQueryItem(name: "offset", value: offset)) }
             var request = URLRequest(url: url.url!); request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
             let page = try JSONDecoder().decode(Page.self, from: await data(request))

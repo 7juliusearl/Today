@@ -148,6 +148,7 @@ struct AsanaPayload: Encodable {
         var brief: AsanaBrief? = nil
         var parent: AsanaAssignedTask.Container? = nil
         var project: AsanaAssignedTask.Container? = nil
+        var commentVersion: String? = nil
     }
     let connected: Bool
     let calendarName: String?
@@ -180,7 +181,7 @@ func asanaPayload(_ events: [EKEvent], now: Date, calendarName: String?) -> Asan
 }
 
 struct AsanaAssignedTask: Decodable {
-    struct Container: Codable { let gid: String; let name: String }
+    struct Container: Codable { let gid: String; let name: String; var modified_at: String? = nil }
     let gid: String
     let name: String
     let completed: Bool
@@ -190,6 +191,7 @@ struct AsanaAssignedTask: Decodable {
     let permalink_url: String?
     var parent: Container? = nil
     var projects: [Container]? = nil
+    var modified_at: String? = nil
 }
 
 func assignedAsanaTasks(_ records: [AsanaAssignedTask], now: Date, calendar: Calendar = .current) -> [AsanaPayload.Task] {
@@ -197,17 +199,12 @@ func assignedAsanaTasks(_ records: [AsanaAssignedTask], now: Date, calendar: Cal
     format.timeZone = calendar.timeZone; format.dateFormat = "yyyy-MM-dd"
     let iso = ISO8601DateFormatter()
     let fractional = ISO8601DateFormatter(); fractional.formatOptions.insert(.withFractionalSeconds)
-    let today = calendar.startOfDay(for: now)
-    let monday = calendar.date(byAdding: .day, value: -((calendar.component(.weekday, from: today) + 5) % 7), to: today)!
-    let start = format.string(from: monday)
-    let end = format.string(from: calendar.date(byAdding: .day, value: 7, to: monday)!)
     var seen = Set<String>()
     return records.compactMap { task in
         guard !task.completed, seen.insert(task.gid).inserted else { return nil }
         let date = task.due_at.flatMap { fractional.date(from: $0) ?? iso.date(from: $0) }.map { format.string(from: $0) } ?? task.due_on
-        guard let date, date >= start, date < end else { return nil }
-        return AsanaPayload.Task(id: "asana:" + task.gid, title: task.name, dueDate: date,
+        return AsanaPayload.Task(id: "asana:" + task.gid, title: task.name, dueDate: date ?? "",
             url: task.permalink_url ?? "https://app.asana.com/0/0/\(task.gid)", description: task.notes, parent: task.parent,
-            project: task.projects?.sorted { $0.gid < $1.gid }.first)
+            project: task.projects?.sorted { $0.gid < $1.gid }.first, commentVersion: task.modified_at)
     }.sorted { ($0.dueDate.isEmpty ? "9999-99-99" : $0.dueDate, $0.id) < ($1.dueDate.isEmpty ? "9999-99-99" : $1.dueDate, $1.id) }
 }

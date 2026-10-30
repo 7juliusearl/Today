@@ -16,15 +16,16 @@ import Foundation
         }
         let records = [record("1", "2026-09-24"), record("1", "2026-09-24"), record("2", nil), record("3", "2026-09-24", done: true), record("4", "2026-09-25", "2026-09-25T01:00:00.000Z"), record("5", "2026-10-09"), record("6", "2026-09-23")]
         let tasks = assignedAsanaTasks(records, now: now, calendar: calendar)
-        assert(tasks.count == 3)
-        assert(!tasks.contains { $0.dueDate.isEmpty || $0.dueDate == "2026-10-09" }, "Only dated tasks this week")
+        assert(tasks.count == 5)
+        assert(tasks.contains { $0.dueDate.isEmpty } && tasks.contains { $0.dueDate == "2026-10-09" }, "Monitor undated and future assignments too")
         let boundaries = assignedAsanaTasks([record("sun", "2026-09-20"), record("mon", "2026-09-21"), record("end", "2026-09-27"), record("next", "2026-09-28")], now: now, calendar: calendar)
-        assert(boundaries.map(\.id) == ["asana:mon", "asana:end"])
+        assert(boundaries.count == 4, "All weeks retained for activity monitoring")
         assert(tasks.first?.id == "asana:6", "Overdue tasks included first")
-        let nested = try JSONDecoder().decode(AsanaAssignedTask.self, from: Data(#"{"gid":"9","name":"Edit","completed":false,"due_on":"2026-09-24","parent":{"gid":"10","name":"Promo"},"projects":[{"gid":"11","name":"Creative"}]}"#.utf8))
+        let nested = try JSONDecoder().decode(AsanaAssignedTask.self, from: Data(#"{"gid":"9","name":"Edit","completed":false,"due_on":"2026-09-24","modified_at":"2026-10-29T12:00:00.000Z","parent":{"gid":"10","name":"Promo","modified_at":"2026-10-29T13:00:00.000Z"},"projects":[{"gid":"11","name":"Creative"}]}"#.utf8))
         let mapped = assignedAsanaTasks([nested], now: now)
         assert(mapped.first?.parent?.name == "Promo" && mapped.first?.project?.name == "Creative")
-        print("PASS: callback state/destination checks; assigned-task dates, timezone, completion, Monday–Sunday boundaries, deduplication and parent/project grouping metadata.")
+        assert(mapped.first?.commentVersion == "2026-10-29T12:00:00.000Z" && mapped.first?.parent?.modified_at == "2026-10-29T13:00:00.000Z", "Track independent parent and subtask changes")
+        print("PASS: callback state/destination checks; assigned-task dates, timezone, completion, all-week and undated coverage, deduplication and parent/project grouping metadata.")
     }
     @MainActor static func tryCode(_ text: String, _ state: String) -> String? { try? AsanaAuth.callbackCode(URL(string: text)!, state: state) }
 }
