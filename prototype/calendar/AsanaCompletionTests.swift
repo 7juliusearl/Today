@@ -24,6 +24,15 @@ import Foundation
         activity.record("parent", latest: "2026-10-28T10:00:00.000Z", viewed: true)
         assert(!activity.unread.contains("parent") && activity.unread.contains("child"), "Only opened conversation cleared")
         print("PASS: comment baselines, new replies, independent parent/subtask read state, stale-read protection.")
+        let ownStory: [String: Any] = ["resource_subtype":"comment_added", "created_by":["gid":"me"], "is_editable":true]
+        assert(canEditAsanaComment(ownStory, viewerID: "me"))
+        assert(!canEditAsanaComment(ownStory, viewerID: "other"))
+        assert(!canEditAsanaComment(ownStory, viewerID: nil))
+        var locked = ownStory; locked["is_editable"] = false
+        assert(!canEditAsanaComment(locked, viewerID: "me"))
+        locked = ownStory; locked["resource_subtype"] = "assigned"
+        assert(!canEditAsanaComment(locked, viewerID: "me"))
+        print("PASS: comment edit ownership, unknown identity, locked comments, non-comment rejection.")
         let briefs = AsanaBriefs()
         for url in ["https://example.com/task/123", "https://app.asana.com/0/0/123", "https://app.asana.com/1/1/project/2/task/3"] {
             do {

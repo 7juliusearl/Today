@@ -2057,3 +2057,8 @@ dialog[data-movable]::backdrop { background: transparent; }
   inset: -2px;
   border-radius: 3px;
 }
+
+.asana-comments .asana-edit-comment { border: 0; background: none; padding: 4px 0; color: var(--ink-soft); font: inherit; font-size: 11px; text-decoration: underline; cursor: pointer; }
+.asana-comment-editor { margin-top: 10px; }
+.asana-comment-editor > button { margin: 8px 8px 0 0; }
+.asana-comment-editor [role="alert"] { margin: 6px 0 0; }

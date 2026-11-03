@@ -263,7 +263,7 @@ struct DashboardWebView: NSViewRepresentable {
                   message.frameInfo.request.url?.isFileURL == true,
                   let body = message.body as? [String: Any], let url = body["taskURL"] as? String,
                   let parent = body["parent"] as? Bool, let action = body["action"] as? String,
-                  ["load", "post", "people", "complete", "read"].contains(action), action != "post" || body["text"] is String else {
+                  ["load", "post", "people", "complete", "read", "edit"].contains(action), !["post", "edit"].contains(action) || body["text"] is String else {
                 replyHandler(nil, "Invalid comment request."); return
             }
             Task { @MainActor in
@@ -279,8 +279,9 @@ struct DashboardWebView: NSViewRepresentable {
                     else if action == "people" { result = try await model.asanaBriefs.users(taskURL: url) }
                     else {
                         result = try await model.asanaBriefs.comments(taskURL: url, parent: parent,
-                            text: action == "post" ? body["text"] as? String : nil, offset: body["offset"] as? String,
-                            mentions: body["mentions"] as? [[String: Any]] ?? [])
+                            text: ["post", "edit"].contains(action) ? body["text"] as? String : nil, offset: body["offset"] as? String,
+                            mentions: body["mentions"] as? [[String: Any]] ?? [],
+                            editID: action == "edit" ? body["commentID"] as? String ?? "" : nil)
                     }
                     replyHandler(result, nil)
                 } catch { replyHandler(nil, error.localizedDescription) }

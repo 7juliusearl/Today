@@ -126,6 +126,13 @@ func verifiedAsanaBrief(_ id: String, cache: [String: AsanaBrief], taskID: (Stri
         parentTitle: nil, parentDescription: nil, parentURL: nil, message: child.message)
 }
 
+func canEditAsanaComment(_ story: [String: Any], viewerID: String?) -> Bool {
+    guard let viewerID, !viewerID.isEmpty, story["resource_subtype"] as? String == "comment_added",
+          (story["created_by"] as? [String: Any])?["gid"] as? String == viewerID,
+          story["is_editable"] as? Bool != false else { return false }
+    return true
+}
+
 struct AsanaCommentActivity {
     var history: [String: String]
     var unread: Set<String>

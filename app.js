@@ -1859,6 +1859,31 @@ function showAsanaBrief(task) {
 }
 
 
+function asanaCommentDraft(comment) {
+  if (!comment.htmlText) return {text: comment.text || '', mentions: []};
+  const body = new DOMParser().parseFromString(comment.htmlText, 'text/html').body;
+  let text = ''; const mentions = [];
+  function visit(node) {
+    if (node.nodeType === Node.TEXT_NODE) { text += node.textContent; return; }
+    if (node.nodeType !== Node.ELEMENT_NODE || ['SCRIPT', 'STYLE'].includes(node.tagName)) return;
+    if (node.tagName === 'A') {
+      const id = node.getAttribute('data-asana-gid') || node.getAttribute('href')?.match(/profile\/(\d+)/)?.[1];
+      if (id && /^\d+$/.test(id)) {
+        const name = '@' + node.textContent.replace(/^@/, '');
+        mentions.push({id, start: text.length, length: name.length}); text += name; return;
+      }
+    }
+    if (node.tagName === 'BR') { text += '\n'; return; }
+    for (const child of node.childNodes) visit(child);
+    if (node.tagName === 'A') {
+      const href = node.getAttribute('href'); if (href && href !== node.textContent && /^https?:/.test(href)) text += ' (' + href + ')';
+    }
+    if (['P','DIV','LI'].includes(node.tagName) && !text.endsWith('\n')) text += '\n';
+  }
+  for (const node of body.childNodes) visit(node);
+  return {text, mentions};
+}
+
 function addAsanaComments(content, task, dialog, close) {
   const bridge = window.webkit.messageHandlers.asanaComments;
   const area = document.createElement('section'); area.className = 'asana-comments';
@@ -1919,7 +1944,46 @@ function addAsanaComments(content, task, dialog, close) {
       time.textContent = Number.isNaN(date.getTime()) ? '' : date.toLocaleString();
       time.dateTime = comment.createdAt || '';
       const text = document.createElement('p'); renderAsanaComment(text, comment, people);
-      item.append(author, time, text); list.append(item);
+      item.append(author, time, text);
+      const edited = document.createElement('small'); edited.textContent = 'Edited'; edited.hidden = !comment.edited; item.append(edited);
+      if (comment.editable) {
+        const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'asana-edit-comment'; edit.textContent = 'Edit';
+        edit.setAttribute('aria-label', 'Edit your comment');
+        edit.addEventListener('click', () => {
+          if (busy) return;
+          revision++; controls(true); edit.hidden = true;
+          const editor = document.createElement('div'); editor.className = 'asana-comment-editor';
+          const field = document.createElement('textarea'); field.maxLength = 10000; field.setAttribute('aria-label', 'Edit your comment');
+          const draft = asanaCommentDraft(comment); field.value = draft.text;
+          editor.append(field); item.append(editor);
+          const picker = asanaMentionPicker(field, bridge, task.url, () => select.value === 'parent'); picker.restore(draft.mentions);
+          const save = document.createElement('button'); save.type = 'button'; save.textContent = 'Save changes';
+          const cancel = document.createElement('button'); cancel.type = 'button'; cancel.textContent = 'Cancel';
+          const error = document.createElement('p'); error.setAttribute('role', 'alert');
+          editor.append(save, cancel, error);
+          const finish = () => { picker.hide(); editor.remove(); edit.hidden = false; controls(false); };
+          cancel.addEventListener('click', finish);
+          save.addEventListener('click', async () => {
+            if (!field.value.trim()) { error.textContent = 'Enter a comment before saving.'; return; }
+            save.disabled = cancel.disabled = field.disabled = true; controls(true, true); error.textContent = ''; picker.hide();
+            try {
+              const mentions = picker.snapshot();
+              if (mentions.length) await bridge.postMessage({action:'people',taskURL:task.url,parent:select.value === 'parent'});
+              const result = await bridge.postMessage({action:'edit',taskURL:task.url,parent:select.value === 'parent',commentID:comment.id,text:field.value,mentions});
+              const updated = result.comments?.find(candidate => candidate.id === comment.id);
+              if (!updated) throw Error('The edit could not be confirmed. Refresh comments to check before saving again.');
+              Object.assign(comment, updated); renderAsanaComment(text, comment, people); edited.hidden = false;
+              finish(); status.textContent = 'Comment updated in Asana.';
+            } catch (failure) {
+              error.textContent = failure.message || String(failure); controls(true);
+              save.disabled = cancel.disabled = field.disabled = false;
+            }
+          });
+          field.focus();
+        });
+        item.append(edit);
+      }
+      list.append(item);
     }
   }
   async function markViewed(comments) {

@@ -6,6 +6,8 @@ import Security
     let auth = AsanaAuth()
     private var commentTimer: Timer?
     private var lastTasks: [AsanaPayload.Task] = []
+    private var viewerID: String?
+    private var editableStories: [String: String] = [:]
     private var activityVersions: [String: String] = [:]
     init() {
         commentTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
@@ -16,7 +18,7 @@ import Security
         }
         auth.onChange = { [weak self] in
             guard let self else { return }
-            self.generation += 1; self.assigned = nil; self.assignedChecked = .distantPast; self.cache.removeAll(); self.checked.removeAll(); self.activityVersions.removeAll()
+            self.generation += 1; self.assigned = nil; self.assignedChecked = .distantPast; self.cache.removeAll(); self.checked.removeAll(); self.activityVersions.removeAll(); self.viewerID = nil; self.editableStories.removeAll()
             self.onChange?()
         }
     }
@@ -271,15 +273,33 @@ import Security
         return ["completed": true]
     }
 
+    private func currentUserID(token: String) async throws -> String {
+        if let viewerID { return viewerID }
+        let current = generation
+        var request = URLRequest(url: URL(string: "https://app.asana.com/api/1.0/users/me?opt_fields=gid")!)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        struct User: Decodable { struct Record: Decodable { let gid: String }; let data: Record }
+        let user = try JSONDecoder().decode(User.self, from: await data(request))
+        guard current == generation, enabled else { throw CancellationError() }
+        viewerID = user.data.gid
+        return user.data.gid
+    }
+
     private var postingComments = Set<String>()
     // Only the task represented by a loaded brief, or its verified parent, may be addressed.
-    func comments(taskURL: String, parent: Bool, text: String?, offset: String?, mentions: [[String: Any]] = []) async throws -> [String: Any] {
+    func comments(taskURL: String, parent: Bool, text: String?, offset: String?, mentions: [[String: Any]] = [], editID: String? = nil) async throws -> [String: Any] {
         guard enabled, auth.connected, let id = Self.taskID(taskURL), let brief = verifiedAsanaBrief(id, cache: cache, taskID: Self.taskID),
               let target = parent ? Self.taskID(brief.parentURL) : id else {
             throw NSError(domain: "Asana", code: 1, userInfo: [NSLocalizedDescriptionKey: "Reconnect Asana in Settings and reopen the task brief."])
         }
         let current = generation
         let isPost = text != nil
+        if let editID {
+            guard text != nil, !editID.isEmpty, editID.allSatisfy({ $0.isASCII && $0.isNumber }),
+                  editableStories[editID] == target else {
+                throw AsanaAuth.AuthError("Only your own loaded comments can be edited. Refresh comments and try again.")
+            }
+        }
         if let text {
             guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, text.count <= 10000,
                   postingComments.insert(target).inserted else {
@@ -289,8 +309,11 @@ import Security
         defer { if isPost { postingComments.remove(target) } }
         let token = try await auth.accessToken()
         guard current == generation, enabled else { throw CancellationError() }
-        var url = URLComponents(string: "https://app.asana.com/api/1.0/tasks/\(target)/stories")!
-        let commentFields = "gid,resource_subtype,text,html_text,created_at,created_by.name"
+        let me = try? await currentUserID(token: token)
+        guard current == generation, enabled else { throw CancellationError() }
+        var url = URLComponents(string: editID.map { "https://app.asana.com/api/1.0/stories/\($0)" }
+            ?? "https://app.asana.com/api/1.0/tasks/\(target)/stories")!
+        let commentFields = "gid,resource_subtype,text,html_text,created_at,created_by.name,created_by.gid,is_editable,is_edited"
         url.queryItems = [URLQueryItem(name: "opt_fields", value: commentFields + (isPost ? "" : ",created_by.gid,created_by.photo.image_60x60"))]
         if !isPost {
             url.queryItems?.append(URLQueryItem(name: "limit", value: "100"))
@@ -300,7 +323,7 @@ import Security
         var request = URLRequest(url: url.url!); request.timeoutInterval = 30
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         if let text {
-            request.httpMethod = "POST"
+            request.httpMethod = editID == nil ? "POST" : "PUT"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             let body: [String: String]
             if mentions.isEmpty { body = ["text": text] }
@@ -343,9 +366,17 @@ import Security
                 : "Could not read Asana’s comments. Try refreshing."])
         }
         let records = isPost ? [object["data"] as! [String: Any]] : object["data"] as! [[String: Any]]
+        for record in records where record["resource_subtype"] as? String == "comment_added" {
+            if let story = record["gid"] as? String {
+                if canEditAsanaComment(record, viewerID: me) { editableStories[story] = target }
+                else { editableStories.removeValue(forKey: story) }
+            }
+        }
         let comments: [[String: Any]] = records.filter { $0["resource_subtype"] as? String == "comment_added" }.map {
             ["id": $0["gid"] as? String ?? "", "text": $0["text"] as? String ?? "",
              "htmlText": $0["html_text"] as? String ?? "",
+             "editable": editableStories[$0["gid"] as? String ?? ""] == target,
+             "edited": $0["is_edited"] as? Bool ?? false,
              "authorID": ($0["created_by"] as? [String: Any])?["gid"] as? String ?? "",
              "avatar": (($0["created_by"] as? [String: Any])?["photo"] as? [String: Any])?["image_60x60"] as? String ?? "",
              "author": ($0["created_by"] as? [String: Any])?["name"] as? String ?? "Asana user",
